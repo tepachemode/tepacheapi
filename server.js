@@ -105,7 +105,7 @@ const init = async () => {
   server.route({
     method: 'GET',
     path: '/api/up/{pin}',
-    handler: (request) => {
+    handler: (request, h) => {
       return sharedHandler(request, h, 'up');
     },
   });
