@@ -55,7 +55,7 @@ function sharedHandler(request, h, direction) {
   insertTimedName(request);
 
   axios
-      .get(`http://localhost:8001/api/${direction}/${pin}`)
+      .get(`http://localhost:8000/api/${direction}/${pin}`)
       .then((res) => {
         console.log(`statusCode: ${res.status}`);
       })
@@ -71,7 +71,7 @@ function sharedHandler(request, h, direction) {
 const init = async () => {
   const server = Hapi.server({
     port: 8001,
-    host: 'localhost',
+    host: '0.0.0.0',
   });
 
   await server.register({
