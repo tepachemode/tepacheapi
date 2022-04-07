@@ -29,7 +29,7 @@ function pinValidate(pin) {
  * @param {Object} h
  * @return {Object}
  */
-function insertTimedName({state: {name}}) {
+function insertTimedName({ name } = {}) {
   if (name) {
     players.add(name);
     clearTimeout(timerMap[name]);
@@ -48,11 +48,12 @@ function insertTimedName({state: {name}}) {
  */
 function sharedHandler(request, h, direction) {
   const pin = request.params.pin;
+
   if (!pinValidate(pin)) {
     return h.response('Bad request').code(400);
   }
 
-  insertTimedName(request);
+  insertTimedName(request.state.user);
 
   axios
       .get(`http://localhost:8000/api/${direction}/${pin}`)
@@ -72,24 +73,31 @@ const init = async () => {
   const server = Hapi.server({
     port: 8001,
     host: '0.0.0.0',
+    routes: {
+      cors: {
+          origin: ['https://stream.biglargeclarke.com'], // an array of origins or 'ignore'
+          maxAge: 60,
+          credentials: true // boolean - 'Access-Control-Allow-Credentials'
+      }
+    }
   });
 
   await server.register({
     plugin: HapiRateLimit,
     options: {
       enabled: true,
-      userLimit: 100,
+      userLimit: 1000,
       userCache: {
         expiresIn: 10000,
       },
     },
   });
 
-  server.state('data', {
+  server.state('user', {
     ttl: null,
     isSecure: true,
     isHttpOnly: true,
-    encoding: 'none',
+    encoding: 'base64json',
     clearInvalid: true,
     strictHeader: true,
   });
@@ -107,6 +115,18 @@ const init = async () => {
     path: '/api/up/{pin}',
     handler: (request, h) => {
       return sharedHandler(request, h, 'up');
+    },
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/name',
+    handler: (request, h) => {
+      const { name } = request.payload;
+
+      h.state('user', { name });
+
+      return h.response('OK').code(200);
     },
   });
 
