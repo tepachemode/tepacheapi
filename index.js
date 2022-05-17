@@ -1,11 +1,9 @@
 import Hapi from '@hapi/hapi';
-import axios from 'axios';
 import hapiRateLimit from 'hapi-rate-limit';
 import {
   PLAYER_MAX,
   CONTROLLER_ONE_PIN_MAPPING,
   CONTROLLER_TWO_PIN_MAPPING,
-  QUEUE_FLUSH_TIME,
   VOTE_SESSION_TIME,
 } from './lib/constants.js';
 import { DemocracyCounter } from './lib/democracy-counter.js';
