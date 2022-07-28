@@ -1,17 +1,20 @@
 import Hapi from '@hapi/hapi';
+import Nes from '@hapi/nes';
 import hapiRateLimit from 'hapi-rate-limit';
 import {
   PLAYER_MAX,
   CONTROLLER_ONE_PIN_MAPPING,
   CONTROLLER_TWO_PIN_MAPPING,
-  VOTE_SESSION_TIME,
+  PLAYER_ACTIVE_LIFETIME,
 } from './lib/constants.js';
 import { DemocracyCounter } from './lib/democracy-counter.js';
 import { ClockedQueue } from './lib/queue.js';
+import axios from 'axios';
 
 const controllerOneCounter = new DemocracyCounter();
 const controllerTwoCounter = new DemocracyCounter();
-const clockedQueue = new ClockedQueue();
+const clockedOneQueue = new ClockedQueue();
+const clockedTwoQueue = new ClockedQueue();
 
 const players = new Set();
 const playerMap = {};
@@ -28,9 +31,14 @@ let playerIncrement = 0;
  * @param {*} direction
  * @param {*} player
  */
-function pushQueue(pin, direction) {
-  clockedQueue.push({ pin, direction });
-  clockedQueue.run();
+function pushQueue(pin, direction, secondary) {
+  if (secondary) {
+    clockedTwoQueue.push({ pin, direction });
+    clockedTwoQueue.run();
+  } else {
+    clockedOneQueue.push({ pin, direction });
+    clockedOneQueue.run();
+  }
 }
 
 /**
@@ -80,7 +88,7 @@ function insertTimedName(name) {
     clearTimeout(timerMap[name]);
     timerMap[name] = setTimeout(() => {
       players.delete(name);
-    }, 30000);
+    }, PLAYER_ACTIVE_LIFETIME);
   }
 }
 
@@ -91,8 +99,8 @@ function insertTimedName(name) {
  * @param {Object} h
  * @return {Object}
  */
-function sharedHandler(request, h) {
-  const controller = parseInt(request?.query?.controller, 10);
+function sharedHandler(request, h, dictatorMode) {
+  const controller = parseInt(request?.payload?.controller, 10);
   const button = request.params.button;
   const user = request?.state?.user;
   let name;
@@ -101,10 +109,6 @@ function sharedHandler(request, h) {
     name = user[0].name;
   } else {
     name = user?.name;
-  }
-
-  if (!name) {
-    name = generateAnonymous();
   }
 
   if (
@@ -117,19 +121,26 @@ function sharedHandler(request, h) {
 
   insertTimedName(name);
 
-  const player = playerMap[name] || {
-    name,
-  };
-
-  playerMap[name] = player;
-
-  if (controller === 2) {
-    controllerTwoCounter.vote(button);
+  if (dictatorMode) {
+    console.log('Dictator mode');
+    if (controller === 2) {
+      console.info(`Controller 2 pressed ${button}`);
+      pushQueue(CONTROLLER_TWO_PIN_MAPPING[button], 'down', true);
+      pushQueue(CONTROLLER_TWO_PIN_MAPPING[button], 'up', true);
+    } else {
+      console.info(`Controller 1 pressed ${button}`);
+      pushQueue(CONTROLLER_ONE_PIN_MAPPING[button], 'down');
+      pushQueue(CONTROLLER_ONE_PIN_MAPPING[button], 'up');
+    }
   } else {
-    controllerOneCounter.vote(button);
+    if (controller === 2) {
+      controllerTwoCounter.vote(button);
+    } else {
+      controllerOneCounter.vote(button);
+    }
   }
 
-  return h.response('OK').state('user', { name });
+  return h.response('OK');
 }
 
 const init = async () => {
@@ -145,18 +156,28 @@ const init = async () => {
     },
   });
 
-  await server.register({
-    plugin: hapiRateLimit,
-    options: {
-      enabled: true,
-      pathLimit: false,
-      userLimit: 10000,
-      userCache: {
-        expiresIn: 10000,
+  await server.register([
+    {
+      plugin: hapiRateLimit,
+      options: {
+        enabled: true,
+        pathLimit: false,
+        userLimit: 1000,
+        userCache: {
+          expiresIn: 10000,
+        },
+        headers: false,
       },
-      headers: false,
     },
-  });
+    {
+      plugin: Nes,
+      options: {
+        auth: {
+          type: 'cookie',
+        },
+      },
+    },
+  ]);
 
   server.state('user', {
     ttl: 1000 * 60 * 60 * 24,
@@ -170,10 +191,45 @@ const init = async () => {
   });
 
   server.route({
+    method: 'POST',
+    path: '/api/press/{button}',
+    config: {
+      id: 'down',
+      handler: async (request, h) => {
+        return sharedHandler(request, h, false);
+      },
+    },
+  });
+
+  server.route({
     method: 'GET',
-    path: '/api/down/{button}',
-    handler: (request, h) => {
-      return sharedHandler(request, h);
+    path: '/assign',
+    config: {
+      handler: (request, h) => {
+        const user = request?.state?.user;
+        let name;
+
+        if (user?.length) {
+          name = user[0].name;
+        } else {
+          name = user?.name;
+        }
+
+        insertTimedName(name);
+
+        if (!name) {
+          name = generateAnonymous();
+          console.log(`New player added ${name}`);
+        }
+
+        const player = playerMap[name] || {
+          name,
+        };
+
+        playerMap[name] = player;
+
+        return h.response('OK').state('user', { name });
+      },
     },
   });
 
@@ -188,27 +244,27 @@ const init = async () => {
   /**
    * Initiate forever cycling of voting
    */
-  setInterval(() => {
-    controllerOneCounter.close();
-    controllerTwoCounter.close();
-    const winnerOnePin =
-      CONTROLLER_ONE_PIN_MAPPING[controllerOneCounter.score()];
-    const winnerTwoPin =
-      CONTROLLER_TWO_PIN_MAPPING[controllerTwoCounter.score()];
+  controllerOneCounter.run((buttonOne) => {
+    const message = `Controller 1 pressed ${buttonOne}`.toUpperCase();
 
-    if (winnerOnePin) {
-      pushQueue(winnerOnePin, 'down');
-      pushQueue(winnerOnePin, 'up');
-    }
+    console.info(message);
+    pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'down');
+    pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'up');
 
-    if (winnerTwoPin) {
-      pushQueue(winnerTwoPin, 'down');
-      pushQueue(winnerTwoPin, 'up');
-    }
+    // axios.get(`http://192.168.86.36:8000/text/${message}`).catch((error) => {
+    //   console.error(error);
+    // });
+  });
 
-    controllerOneCounter.open();
-    controllerTwoCounter.open();
-  }, VOTE_SESSION_TIME);
+  controllerTwoCounter.run((buttonTwo) => {
+    const message = `Controller 2 pressed ${buttonTwo}`.toUpperCase();
+    console.info(message);
+    pushQueue(CONTROLLER_TWO_PIN_MAPPING[buttonTwo], 'down', true);
+    pushQueue(CONTROLLER_TWO_PIN_MAPPING[buttonTwo], 'up', true);
+    // axios.get(`http://192.168.86.36:8000/text/${message}`).catch((error) => {
+    //   console.error(error);
+    // });
+  });
 
   await server.start();
   console.log('Server running on %s', server.info.uri);
