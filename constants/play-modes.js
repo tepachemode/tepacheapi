@@ -1,0 +1,7 @@
+export const PLAY_MODES = {
+  TEAM: 'TEAM',
+  VERSUS: 'VERSUS',
+  QUEEN: 'QUEEN',
+  FREEPLAY: 'FREEPLAY',
+  ADMIN_CONTROL: 'ADMIN_CONTROL',
+};
