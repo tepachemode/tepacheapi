@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "emulate": "NODE_ENV=development FIREBASE_AUTH_EMULATOR_HOST=\"localhost:9099\" node server.js"
   },
   "repository": {
     "type": "git",
@@ -20,8 +21,11 @@
     "@hapi/hapi": "^20.2.1",
     "@hapi/nes": "^12.0.4",
     "axios": "^0.26.1",
+    "firebase": "^9.9.1",
     "firebase-admin": "^11.0.0",
-    "hapi-rate-limit": "^5.0.1"
+    "hapi-pino": "^10.1.0",
+    "hapi-rate-limit": "^5.0.1",
+    "joi": "^17.6.0"
   },
   "devDependencies": {
     "eslint": "^8.15.0",
