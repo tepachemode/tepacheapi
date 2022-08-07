@@ -8,7 +8,7 @@ import { assert } from '../lib/assert.js';
 export class Firestore {
   constructor(firebaseInstance) {
     assert(firebaseInstance.app, 'firebaseInstance must have an app');
-    this.db = getFirestore();
+    this.db = getFirestore(firebaseInstance.app);
   }
 
   /**
@@ -32,9 +32,17 @@ export class Firestore {
    *
    * @returns Promise<Query>
    */
-  async findDocs(collectionName, field, operator, value) {
+  findDocs(collectionName, ...args) {
     const collection = this.db.collection(collectionName);
-    return await collection.where(field, operator, value);
+    let query = collection;
+
+    for (let i = 0; i < args.length; i += 1) {
+      const { field, operator, value } = args[i];
+
+      query = query.where(field, operator, value);
+    }
+
+    return query;
   }
 
   /**

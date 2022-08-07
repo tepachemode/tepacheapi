@@ -19,6 +19,7 @@ export class Firebase {
 
     this.#app = await initializeApp({
       credential: cert(credentials),
+      storageBucket: 'tepache-mode.appspot.com',
     });
 
     return this.#app;
