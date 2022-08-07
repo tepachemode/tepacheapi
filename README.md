@@ -45,7 +45,9 @@ _Server code is mid-migration from proof of concept file, index.js_
 #### Environment parameters
 
 `FIREBASE_STORAGE_EMULATOR_HOST="localhost:9199"`
+
 `FIRESTORE_EMULATOR_HOST="localhost:8080"`
+
 `FIREBASE_AUTH_EMULATOR_HOST="localhost:9099"`
 
 #### Running Tests
