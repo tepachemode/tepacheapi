@@ -1,0 +1,8 @@
+export const GAME_SESSION_STATE = {
+    PENDING: 'PENDING',
+    ACTIVE: 'ACTIVE',
+    PAUSED: 'PAUSED',
+    COMPLETED: 'COMPLETED',
+    DELETED: 'DELETED',
+  };
+  

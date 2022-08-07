@@ -2,7 +2,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { assert } from '../lib/assert.js';
 import { Resource } from '../lib/resource.js';
 import { createForNamespace } from '../lib/urn.js';
-import { PLAY_MODES, GAME_SESSION_STATE } from '../lib/constants.js';
+import { PLAY_MODES } from '../lib/play-modes.js';
+import { GAME_SESSION_STATE } from '../lib/game-session-state.js';
 
 const DEFAULT_PLAY_MODE = PLAY_MODES.ADMIN_CONTROL;
 const DEFAULT_STATE = GAME_SESSION_STATE.PENDING;
