@@ -5,6 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "lint:dry": "eslint --dry-run .",
     "emulate": "NODE_ENV=development FIREBASE_STORAGE_EMULATOR_HOST=\"localhost:9199\" FIRESTORE_EMULATOR_HOST=\"localhost:8080\" FIREBASE_AUTH_EMULATOR_HOST=\"localhost:9099\" node server.js"
   },
   "repository": {
