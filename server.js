@@ -5,13 +5,18 @@
 import Hapi from '@hapi/hapi';
 import hapiPino from 'hapi-pino';
 import { tepacheGameSessionsPostHandler } from './handlers/tepache-game-sessions.js';
-import { tepachePlayerSessionsGetHandler } from './handlers/tepache-player-sessions.js';
+import {
+  tepachePlayerSessionsGetHandler,
+  tepachePlayerSessionsPostHandler,
+  tepachePlayerSessionsPatchHandler,
+} from './handlers/tepache-player-sessions.js';
 import { TepacheGameSessions } from './resources/game-sessions.js';
 import { TepacheGames } from './resources/games.js';
 import { TepachePlayerSessions } from './resources/player-sessions.js';
 import { Authentication } from './services/authentication.js';
 import { Firebase } from './services/firebase.js';
 import { Firestore } from './services/firestore.js';
+import { CORS } from './lib/config.js';
 
 const firebase = new Firebase();
 
@@ -36,10 +41,7 @@ const PORT = process.env.PORT || 7777;
     port: PORT,
     host: '0.0.0.0',
     routes: {
-      cors: {
-        origin: ['*'],
-        headers: ['Authorization'], // an array of strings - 'Access-Control-Allow-Headers'
-      },
+      cors: CORS,
     },
   });
 
@@ -77,6 +79,18 @@ const PORT = process.env.PORT || 7777;
     method: 'GET',
     path: '/api/tepache-player-sessions',
     ...tepachePlayerSessionsGetHandler(authentication, tepachePlayerSessions),
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/tepache-player-sessions',
+    ...tepachePlayerSessionsPostHandler(authentication, tepachePlayerSessions),
+  });
+
+  server.route({
+    method: 'PATCH',
+    path: '/api/tepache-player-sessions/{playerSessionDocumentId}',
+    ...tepachePlayerSessionsPatchHandler(authentication, tepachePlayerSessions),
   });
 
   server.route({
