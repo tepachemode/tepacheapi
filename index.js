@@ -1,56 +1,58 @@
+/**
+ * TODO: Delete this entrypoint following clean up of index.js
+ */
+
+import hapiBasic from '@hapi/basic';
 import Hapi from '@hapi/hapi';
 import Nes from '@hapi/nes';
+import hapiPino from 'hapi-pino';
 import hapiRateLimit from 'hapi-rate-limit';
+import { tepacheGameSessionsPostHandler } from './handlers/tepache-game-sessions.js';
 import {
-  PLAYER_MAX,
-  CONTROLLER_ONE_PIN_MAPPING,
-  CONTROLLER_TWO_PIN_MAPPING,
-  PLAYER_ACTIVE_LIFETIME,
-} from './lib/constants.js';
-import { DemocracyCounter } from './lib/democracy-counter.js';
-import { ClockedQueue } from './lib/queue.js';
-import axios from 'axios';
+  tepachePlayerSessionsGetHandler,
+  tepachePlayerSessionsPatchHandler,
+  tepachePlayerSessionsPostHandler,
+} from './handlers/tepache-player-sessions.js';
+import { tepacheSessionCapturesPostHandler } from './handlers/tepache-session-captures.js';
+import { CORS } from './lib/config.js';
+import { TepacheGameSessions } from './resources/game-sessions.js';
+import { TepacheGames } from './resources/games.js';
+import { TepacheHardwareInputs } from './resources/hardware-inputs.js';
+import { TepachePlayerSessions } from './resources/player-sessions.js';
+import { Authentication } from './services/authentication.js';
+import { Firebase } from './services/firebase.js';
+import { Firestore } from './services/firestore.js';
+// import { Game } from './game.js';
+import { SESSION_MAX } from './constants/session-max.js';
 
-const controllerOneCounter = new DemocracyCounter();
-const controllerTwoCounter = new DemocracyCounter();
-const clockedOneQueue = new ClockedQueue();
-const clockedTwoQueue = new ClockedQueue();
+const firebase = new Firebase();
 
-const players = new Set();
-const playerMap = {};
-const timerMap = {
-  // name: setTimeoutInstance
-};
+await firebase.register();
 
-let playerIncrement = 0;
+const firestore = new Firestore(firebase);
+const authentication = new Authentication(firebase);
 
-/**
- * Push to action queue
- *
- * @param {*} pin
- * @param {*} direction
- * @param {*} player
- */
-function pushQueue(pin, direction, secondary) {
-  if (secondary) {
-    clockedTwoQueue.push({ pin, direction });
-    clockedTwoQueue.run();
-  } else {
-    clockedOneQueue.push({ pin, direction });
-    clockedOneQueue.run();
-  }
-}
+const tepachePlayerSessions = new TepachePlayerSessions(firestore);
+const tepacheGameSessions = new TepacheGameSessions(firestore);
+const tepacheGames = new TepacheGames(firestore);
+const tepacheHardwareInputs = new TepacheHardwareInputs(firestore);
+
+// const game = new Game();
+
+const PORT = process.env.PORT || 7777;
+
+let sessionIncrement = 0;
 
 /**
  * Generate incremented number
  * @returns
  */
 function generateNumber() {
-  if (playerIncrement >= PLAYER_MAX) {
-    playerIncrement = 0;
+  if (sessionIncrement >= SESSION_MAX) {
+    sessionIncrement = 0;
   }
 
-  return ++playerIncrement;
+  return ++sessionIncrement;
 }
 
 /**
@@ -62,97 +64,17 @@ function generateAnonymous() {
   return `Anonymous${generateNumber()}`;
 }
 
-/**
- * True if good
- *
- * @param {String} button
- */
-function buttonValidate(button) {
-  if (typeof button !== 'string') {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Responder for pin
- *
- * @param {Object} request
- * @param {Object} h
- * @return {Object}
- */
-function insertTimedName(name) {
-  if (name) {
-    players.add(name);
-    clearTimeout(timerMap[name]);
-    timerMap[name] = setTimeout(() => {
-      players.delete(name);
-    }, PLAYER_ACTIVE_LIFETIME);
-  }
-}
-
-/**
- * Responder for pin
- *
- * @param {Object} request
- * @param {Object} h
- * @return {Object}
- */
-function sharedHandler(request, h, dictatorMode) {
-  const controller = parseInt(request?.payload?.controller, 10);
-  const button = request.params.button;
-  const user = request?.state?.user;
-  let name;
-
-  if (user?.length) {
-    name = user[0].name;
-  } else {
-    name = user?.name;
-  }
-
-  if (
-    !buttonValidate(button) &&
-    !CONTROLLER_ONE_PIN_MAPPING[button] &&
-    !CONTROLLER_TWO_PIN_MAPPING[button]
-  ) {
-    return h.response('Bad request').code(400);
-  }
-
-  insertTimedName(name);
-
-  if (dictatorMode) {
-    console.log('Dictator mode');
-    if (controller === 2) {
-      console.info(`Controller 2 pressed ${button}`);
-      pushQueue(CONTROLLER_TWO_PIN_MAPPING[button], 'down', true);
-      pushQueue(CONTROLLER_TWO_PIN_MAPPING[button], 'up', true);
-    } else {
-      console.info(`Controller 1 pressed ${button}`);
-      pushQueue(CONTROLLER_ONE_PIN_MAPPING[button], 'down');
-      pushQueue(CONTROLLER_ONE_PIN_MAPPING[button], 'up');
-    }
-  } else {
-    if (controller === 2) {
-      controllerTwoCounter.vote(button);
-    } else {
-      controllerOneCounter.vote(button);
-    }
-  }
-
-  return h.response('OK');
-}
-
-const init = async () => {
+(async () => {
   const server = Hapi.server({
-    port: 8001,
+    // do not forget to read this from process
+    debug: {
+      log: ['*'],
+      request: ['*'],
+    },
+    port: PORT,
     host: '0.0.0.0',
     routes: {
-      cors: {
-        origin: ['https://stream.biglargeclarke.com'], // an array of origins or 'ignore'
-        maxAge: 60,
-        credentials: true, // boolean - 'Access-Control-Allow-Credentials'
-      },
+      cors: CORS,
     },
   });
 
@@ -170,109 +92,146 @@ const init = async () => {
       },
     },
     {
+      plugin: hapiPino,
+      options: {
+        // Redact Authorization headers, see https://getpino.io/#/docs/redaction
+        redact: ['req.headers.authorization'],
+      },
+    },
+    {
+      plugin: hapiBasic,
+    },
+  ]);
+
+  // This works super poorly for JWT so hacks are warranted
+  const validate = async (request) => {
+    const [, token] = request.headers.authorization.split('Basic ');
+    return {
+      isValid: true,
+      credentials: {
+        authorization: token,
+      },
+    };
+  };
+
+  server.auth.strategy('socket', 'basic', { validate });
+
+  await server.register([
+    {
       plugin: Nes,
       options: {
         auth: {
-          type: 'cookie',
+          type: 'direct',
+          route: 'socket',
         },
       },
     },
   ]);
 
-  server.state('user', {
-    ttl: 1000 * 60 * 60 * 24,
-    domain: '.biglargeclarke.com',
-    path: '/',
-    isSecure: true,
-    isHttpOnly: false,
-    encoding: 'base64json',
-    clearInvalid: true,
-    strictHeader: true,
+  // https://jsonapi.org/format/
+
+  server.route({
+    method: 'POST',
+    path: '/api/tepache-games', // create
+    handler: async (request, h) => {
+      return h.response('Not implemented').code(501);
+    },
   });
 
   server.route({
     method: 'POST',
-    path: '/api/press/{button}',
-    config: {
-      id: 'down',
-      handler: async (request, h) => {
-        return sharedHandler(request, h, false);
-      },
-    },
+    path: '/api/tepache-game-sessions', // create
+    ...tepacheGameSessionsPostHandler(
+      authentication,
+      tepacheGameSessions,
+      tepacheGames
+    ),
   });
 
   server.route({
     method: 'GET',
-    path: '/assign',
-    config: {
-      handler: (request, h) => {
-        const user = request?.state?.user;
-        let name;
+    path: '/api/tepache-player-sessions',
+    ...tepachePlayerSessionsGetHandler(authentication, tepachePlayerSessions),
+  });
 
-        if (user?.length) {
-          name = user[0].name;
-        } else {
-          name = user?.name;
-        }
+  server.route({
+    method: 'POST',
+    path: '/api/tepache-player-sessions',
+    ...tepachePlayerSessionsPostHandler(
+      authentication,
+      tepachePlayerSessions,
+      generateAnonymous
+    ),
+  });
 
-        insertTimedName(name);
+  server.route({
+    method: 'PATCH',
+    path: '/api/tepache-player-sessions/{playerSessionDocumentId}',
+    ...tepachePlayerSessionsPatchHandler(
+      authentication,
+      tepachePlayerSessions,
+      generateAnonymous
+    ),
+  });
 
-        if (!name) {
-          name = generateAnonymous();
-          console.log(`New player added ${name}`);
-        }
-
-        const player = playerMap[name] || {
-          name,
-        };
-
-        playerMap[name] = player;
-
-        return h.response('OK').state('user', { name });
-      },
+  server.route({
+    method: 'POST',
+    path: '/api/tepache-session-captures', // create
+    handler: async (request, h) => {
+      return h.response('Not implemented').code(501);
     },
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/tepache-hardware-inputs', // create
+    handler: async (request, h) => {
+      return h.response('Not implemented').code(501);
+    },
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/tepache-logs', // create
+    handler: async (request, h) => {
+      return h.response('Not implemented').code(501);
+    },
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/socket/tepache-session-captures', // create
+    ...tepacheSessionCapturesPostHandler(
+      tepacheHardwareInputs,
+      tepacheGameSessions,
+      tepachePlayerSessions
+    ),
   });
 
   server.route({
     method: '*',
     path: '/{any*}',
     handler: function (request, h) {
-      return h.response('Not found').code(404);
+      return h.response('Not Found\n').code(404);
     },
   });
 
-  /**
-   * Initiate forever cycling of voting
-   */
-  controllerOneCounter.run((buttonOne) => {
-    const message = `Controller 1 pressed ${buttonOne}`.toUpperCase();
-
-    console.info(message);
-    pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'down');
-    pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'up');
-
-    // axios.get(`http://192.168.86.36:8000/text/${message}`).catch((error) => {
-    //   console.error(error);
-    // });
-  });
-
-  controllerTwoCounter.run((buttonTwo) => {
-    const message = `Controller 2 pressed ${buttonTwo}`.toUpperCase();
-    console.info(message);
-    pushQueue(CONTROLLER_TWO_PIN_MAPPING[buttonTwo], 'down', true);
-    pushQueue(CONTROLLER_TWO_PIN_MAPPING[buttonTwo], 'up', true);
-    // axios.get(`http://192.168.86.36:8000/text/${message}`).catch((error) => {
-    //   console.error(error);
-    // });
-  });
-
   await server.start();
-  console.log('Server running on %s', server.info.uri);
-};
+
+  // game.onFlush((gameSession, playerSession, button, type) => {
+  //   // Non-blocking call to create hardware input
+  //   tepacheHardwareInputs.createForSessions(gameSession, playerSession, {
+  //     button,
+  //     type,
+  //   });
+  // });
+
+  // game.start();
+
+  console.log('Tepache API running at', PORT);
+})();
 
 process.on('unhandledRejection', (err) => {
   console.log(err);
   process.exit(1);
 });
-
-init();
