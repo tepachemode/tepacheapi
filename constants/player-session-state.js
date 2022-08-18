@@ -1,0 +1,4 @@
+export const PLAYER_SESSION_STATE = {
+  ACTIVE: 'ACTIVE',
+  DISABLED: 'DISABLED',
+};

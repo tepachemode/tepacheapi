@@ -56,13 +56,21 @@ export function tepachePlayerSessionsGetHandler(
 
 export function tepachePlayerSessionsPostHandler(
   authentication,
-  tepachePlayerSessions
+  tepachePlayerSessions,
+  generateAnonymous
 ) {
   return {
     handler: async (request, h) => {
-      const { gameSessionUrn, name } = deserialize(request.payload);
+      const deserialized = deserialize(request.payload);
+      const { gameSessionUrn } = deserialized;
+      let { name } = deserialized;
+
       const { authorization } = request.headers;
       const checkRevoked = true;
+
+      if (!name) {
+        name = generateAnonymous();
+      }
 
       try {
         const { uid } = await getAuth().verifyIdToken(
@@ -107,14 +115,19 @@ export function tepachePlayerSessionsPostHandler(
 
 export function tepachePlayerSessionsPatchHandler(
   authentication,
-  tepachePlayerSessions
+  tepachePlayerSessions,
+  generateAnonymous
 ) {
   return {
     handler: async (request, h) => {
       const { playerSessionDocumentId } = request.params;
-      const { name } = deserialize(request.payload);
+      let { name } = deserialize(request.payload);
       const { authorization } = request.headers;
       const checkRevoked = true;
+
+      if (!name) {
+        name = generateAnonymous();
+      }
 
       try {
         const { uid } = await getAuth().verifyIdToken(

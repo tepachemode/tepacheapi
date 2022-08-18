@@ -4,6 +4,7 @@ import { Resource } from '../lib/resource.js';
 import { createForNamespace } from '../lib/urn.js';
 import { PLAY_MODES } from '../constants/play-modes.js';
 import { GAME_SESSION_STATE } from '../constants/game-session-state.js';
+import { urn as validateUrn } from '../lib/validate.js';
 
 const DEFAULT_PLAY_MODE = PLAY_MODES.ADMIN_CONTROL;
 const DEFAULT_STATE = GAME_SESSION_STATE.PENDING;
@@ -56,5 +57,25 @@ export class TepacheGameSessions extends Resource {
     };
 
     return await this.#firestore.addDoc(this.collectionName, document);
+  }
+
+  findActiveByUrn(urn) {
+    assert(validateUrn(urn), 'urn is required');
+
+    return this.#firestore
+      .findDocs(
+        this.collectionName,
+        {
+          field: 'urn',
+          operator: '==',
+          value: urn,
+        },
+        {
+          field: 'state',
+          operator: '==',
+          value: GAME_SESSION_STATE.ACTIVE,
+        }
+      )
+      .limit(1);
   }
 }

@@ -19,10 +19,11 @@ import { TepacheGameSessions } from './resources/game-sessions.js';
 import { TepacheGames } from './resources/games.js';
 import { TepacheHardwareInputs } from './resources/hardware-inputs.js';
 import { TepachePlayerSessions } from './resources/player-sessions.js';
+import { TepacheSessionCaptures } from './resources/session-captures.js';
 import { Authentication } from './services/authentication.js';
 import { Firebase } from './services/firebase.js';
 import { Firestore } from './services/firestore.js';
-// import { Game } from './game.js';
+import { GameFacade } from './services/game-facade.js';
 import { SESSION_MAX } from './constants/session-max.js';
 
 const firebase = new Firebase();
@@ -36,10 +37,11 @@ const tepachePlayerSessions = new TepachePlayerSessions(firestore);
 const tepacheGameSessions = new TepacheGameSessions(firestore);
 const tepacheGames = new TepacheGames(firestore);
 const tepacheHardwareInputs = new TepacheHardwareInputs(firestore);
+const tepacheSessionCaptures = new TepacheSessionCaptures(firestore);
 
-// const game = new Game();
+const gameFacade = new GameFacade(tepacheGameSessions, tepacheHardwareInputs);
 
-const PORT = process.env.PORT || 7777;
+const PORT = process.env.PORT || 8484;
 
 let sessionIncrement = 0;
 
@@ -202,9 +204,10 @@ function generateAnonymous() {
     method: 'POST',
     path: '/api/socket/tepache-session-captures', // create
     ...tepacheSessionCapturesPostHandler(
-      tepacheHardwareInputs,
+      tepacheSessionCaptures,
       tepacheGameSessions,
-      tepachePlayerSessions
+      tepachePlayerSessions,
+      gameFacade
     ),
   });
 
@@ -216,22 +219,15 @@ function generateAnonymous() {
     },
   });
 
+  gameFacade.subscribe();
+
   await server.start();
-
-  // game.onFlush((gameSession, playerSession, button, type) => {
-  //   // Non-blocking call to create hardware input
-  //   tepacheHardwareInputs.createForSessions(gameSession, playerSession, {
-  //     button,
-  //     type,
-  //   });
-  // });
-
-  // game.start();
 
   console.log('Tepache API running at', PORT);
 })();
 
 process.on('unhandledRejection', (err) => {
   console.log(err);
+  gameFacade.unsubscribe();
   process.exit(1);
 });

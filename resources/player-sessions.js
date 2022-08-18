@@ -1,9 +1,10 @@
-import { Timestamp, WriteResult } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import { assert } from '../lib/assert.js';
 import { Resource } from '../lib/resource.js';
 import { createForNamespace } from '../lib/urn.js';
 import { urn as validateUrn } from '../lib/validate.js';
 import { Firestore } from '../services/firestore.js';
+import { PLAYER_SESSION_STATE } from '../constants/player-session-state.js';
 export class TepachePlayerSessions extends Resource {
   #firestore;
 
@@ -52,6 +53,21 @@ export class TepachePlayerSessions extends Resource {
   }
 
   /**
+   * Get active player session for game session and user.
+   *
+   * @param {String} gameSessionUrn - The urn of the game session.
+   * @param {String} uid - The uid of the player.
+   * @returns {Promise<DocumentReference>}
+   */
+  getActiveByGameSessionUrnAndUser(gameSessionUrn, uid) {
+    return this.getByGameSessionUrnAndUser(gameSessionUrn, uid).where(
+      'state',
+      '==',
+      PLAYER_SESSION_STATE.ACTIVE
+    );
+  }
+
+  /**
    *
    * @param {String} gameSessionUrn - The urn of the game session.
    * @param {String} uid - The uid of the player.
@@ -75,6 +91,7 @@ export class TepachePlayerSessions extends Resource {
       lastActivityAt: createdAt,
       gameSessionUrn,
       uid,
+      state: PLAYER_SESSION_STATE.ACTIVE, // Automatically eligible for play
     };
 
     return this.#firestore.addDoc(this.collectionName, document);
@@ -96,7 +113,10 @@ export class TepachePlayerSessions extends Resource {
       playerSessionDocumentId
     );
 
-    await Firestore.updateDocumentReference(documentReference, { name });
+    await Firestore.updateDocumentReference(documentReference, {
+      name,
+      lastActivityAt: Timestamp.now(),
+    });
 
     return documentReference;
   }
