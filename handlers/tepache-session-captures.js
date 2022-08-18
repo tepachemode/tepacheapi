@@ -62,17 +62,19 @@ export function tepacheSessionCapturesPostHandler(
 
         const playerSession = playerSessionQuerySnapshot.docs[0].data();
 
-        // Non-blocking call to create session capture
-        const sessionCapture = tepacheSessionCaptures.createForSessions(
-          gameSession,
-          playerSession,
-          {
-            button,
-            type: BUTTON_INTERACTIONS.BUTTON_PRESS,
-          }
-        );
+        const sessionCaptureSnapshot =
+          await tepacheSessionCaptures.createForSessions(
+            gameSession,
+            playerSession,
+            {
+              button,
+              type: BUTTON_INTERACTIONS.BUTTON_PRESS,
+            }
+          );
 
-        gameFacade.press(sessionCapture, gameSession, playerSession);
+        const sessionCapture = await sessionCaptureSnapshot.get();
+
+        gameFacade.press(sessionCapture.data(), gameSession, playerSession);
 
         return h.response('OK').code(200);
       },

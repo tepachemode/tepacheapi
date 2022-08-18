@@ -1,4 +1,4 @@
-import { Game } from './game';
+import { Game } from './game.js';
 import axios from 'axios';
 
 export class GameFacade {
@@ -23,8 +23,8 @@ export class GameFacade {
    * @param {DocumentSnapshot} gameSession - The game session to add
    * @returns {Promise<void>}
    */
-  onGameAdded(gameSession) {
-    if (this.#gameSessionRegister.has(gameSession.id)) {
+  onGameAdded(gameSessionId, gameSession) {
+    if (this.#gameSessionRegister.has(gameSessionId)) {
       return;
     }
 

@@ -71,6 +71,11 @@ export class Firestore {
     return await collection.add(document);
   }
 
+  onSnapshot(collectionName, callback) {
+    const collection = this.db.collection(collectionName);
+    return collection.onSnapshot(callback);
+  }
+
   /**
    * Update a document by reference
    *

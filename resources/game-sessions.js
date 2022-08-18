@@ -78,4 +78,12 @@ export class TepacheGameSessions extends Resource {
       )
       .limit(1);
   }
+
+  /**
+   * Listen for game session changes
+   * @returns {Promise<DocumentSnapshot[]>}
+   */
+  onSnapshot(callback) {
+    return this.#firestore.onSnapshot(this.collectionName, callback);
+  }
 }

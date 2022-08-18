@@ -228,6 +228,10 @@ function generateAnonymous() {
 
 process.on('unhandledRejection', (err) => {
   console.log(err);
-  gameFacade.unsubscribe();
+  try {
+    gameFacade.unsubscribe();
+  } catch (e) {
+    console.log('Failed to unsubscribe', e);
+  }
   process.exit(1);
 });

@@ -74,18 +74,20 @@ class TeamRegister {
   }
 
   add(playerSessionUrn) {
-    let previous;
-    this.teams.forEach((team) => {
-      if (!previous) {
-        previous = team;
-      } else {
-        if (team.size <= previous.size) {
-          team.push(playerSessionUrn);
-          return team;
-        }
-        previous = team;
+    const smallestTeam = this.teams.reduce((currentTeam, team) => {
+      if (!currentTeam) {
+        return team;
       }
+
+      if (team.length < currentTeam.length) {
+        return team;
+      }
+
+      return currentTeam;
     });
+
+    smallestTeam.push(playerSessionUrn);
+    return smallestTeam;
   }
 }
 
@@ -100,7 +102,7 @@ export class Game {
 
   #teamRegister;
 
-  constructor(gameSession, hardwareInputResource, onFlush) {
+  constructor(gameSession, hardwareInputResource) {
     this.#gameSession = gameSession;
     this.#hardwareInputResource = hardwareInputResource;
     this.#playerRegister = new Map();
@@ -122,7 +124,7 @@ export class Game {
   }
 
   press(sessionCapture, playerSession) {
-    if (this.#playerRegister.has(playerSession.urn)) {
+    if (!this.#playerRegister.has(playerSession.urn)) {
       this.assign(playerSession.urn);
     }
 
@@ -133,7 +135,7 @@ export class Game {
       !CONTROLLER_ONE_PIN_MAPPING[button] &&
       !CONTROLLER_TWO_PIN_MAPPING[button]
     ) {
-      console.warning(`Invalid button ${button}`);
+      console.warn(`Invalid button ${button}`);
       return;
     }
 
@@ -170,7 +172,7 @@ export class Game {
       pushQueue(pin, 'up', () => {
         onFlush(
           playerSessionUrn,
-          { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
+          { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
           {
             pin,
             direction: 'up',
@@ -207,7 +209,7 @@ export class Game {
         () => {
           onFlush(
             playerSessionUrn,
-            { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
+            { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
             {
               pin,
               direction: 'up',
