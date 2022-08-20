@@ -166,7 +166,7 @@ export class Game {
     controllerOneCounter.run((buttonOne, playerSession) => {
       const pin = CONTROLLER_ONE_PIN_MAPPING[buttonOne];
       //const team = this.#playerRegister.get(playerSession.urn);
-      const message = `${playerSession.name} wins ${buttonOne} press`;
+      const message = `${playerSession.name} pressed ${buttonOne}`;
       this.#tepacheLogResource.create(message, playerSession.urn);
 
       pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'down', () => {
@@ -196,7 +196,7 @@ export class Game {
       const pin = CONTROLLER_TWO_PIN_MAPPING[buttonTwo];
 
       // const { team } = this.#playerRegister.get(playerSession.urn);
-      const message = `${playerSession.name} wins ${buttonTwo} press`;
+      const message = `${playerSession.name} pressed ${buttonTwo}`;
       this.#tepacheLogResource.create(message, playerSession.urn);
 
       pushQueue(
