@@ -67,27 +67,31 @@ function insertTimedName(name) {
 class TeamRegister {
   teams = [];
 
-  constructor(teamCount) {
-    for (let i = 0; i < teamCount; i++) {
-      this.teams.push([]);
+  constructor(...teamNames) {
+    for (let i = 0; i < teamNames.length; i++) {
+      this.teams.push({
+        name: teamNames[i],
+        players: [],
+      });
     }
   }
 
   add(playerSessionUrn) {
-    const smallestTeam = this.teams.reduce((currentTeam, team) => {
-      if (!currentTeam) {
-        return team;
-      }
+    // const smallestTeam = this.teams.reduce((currentTeam, team) => {
+    //   if (!currentTeam) {
+    //     return team;
+    //   }
 
-      if (team.length < currentTeam.length) {
-        return team;
-      }
+    //   if (team.players.length < currentTeam.players.length) {
+    //     return team;
+    //   }
 
-      return currentTeam;
-    });
+    //   return currentTeam;
+    // });
 
-    smallestTeam.push(playerSessionUrn);
-    return smallestTeam;
+    this.teams[0].players.push(playerSessionUrn);
+    // return smallestTeam;
+    return this.teams[0];
   }
 }
 
@@ -96,18 +100,22 @@ export class Game {
 
   #hardwareInputResource;
 
+  #tepacheLogResource;
+
   #playerRegister;
 
   #counterRegister;
 
   #teamRegister;
 
-  constructor(gameSession, hardwareInputResource) {
+  constructor(gameSession, hardwareInputResource, tepacheLogResource) {
     this.#gameSession = gameSession;
     this.#hardwareInputResource = hardwareInputResource;
+    this.#tepacheLogResource = tepacheLogResource;
+
     this.#playerRegister = new Map();
     this.#counterRegister = new Map();
-    this.#teamRegister = new TeamRegister(2);
+    this.#teamRegister = new TeamRegister('one', 'two');
     this.#counterRegister.set(
       this.#teamRegister.teams[0],
       controllerOneCounter
@@ -118,14 +126,16 @@ export class Game {
     );
   }
 
-  assign(playerSessionUrn) {
-    const team = this.#teamRegister.add(playerSessionUrn);
-    this.#playerRegister.set(playerSessionUrn, team);
+  assign(playerSession) {
+    const team = this.#teamRegister.add(playerSession.urn);
+    // const message = `${playerSession.name} has joined team ${team.name}`;
+    // this.#tepacheLogResource.create(message, playerSession.urn);
+    this.#playerRegister.set(playerSession.urn, team);
   }
 
   press(sessionCapture, playerSession) {
     if (!this.#playerRegister.has(playerSession.urn)) {
-      this.assign(playerSession.urn);
+      this.assign(playerSession);
     }
 
     const { button } = sessionCapture;
@@ -144,23 +154,24 @@ export class Game {
     const team = this.#playerRegister.get(playerSession.urn);
     const counter = this.#counterRegister.get(team);
 
-    counter.vote(button, playerSession.urn);
+    // const message = `${playerSession.name} voted for ${button?.toUpperCase()}`;
+    // this.#tepacheLogResource.create(message, playerSession.urn);
+    counter.vote(button, playerSession);
   }
 
   start(onFlush) {
     /**
      * Initiate forever cycling of voting
      */
-    controllerOneCounter.run((buttonOne, playerSessionUrn) => {
-      const message = `Controller 1 pressed ${buttonOne}`.toUpperCase();
-
-      console.info(message);
-
+    controllerOneCounter.run((buttonOne, playerSession) => {
       const pin = CONTROLLER_ONE_PIN_MAPPING[buttonOne];
+      //const team = this.#playerRegister.get(playerSession.urn);
+      const message = `${playerSession.name} wins ${buttonOne} press`;
+      this.#tepacheLogResource.create(message, playerSession.urn);
 
       pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'down', () => {
         onFlush(
-          playerSessionUrn,
+          playerSession.urn,
           { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
           {
             pin,
@@ -171,7 +182,7 @@ export class Game {
 
       pushQueue(pin, 'up', () => {
         onFlush(
-          playerSessionUrn,
+          playerSession.urn,
           { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
           {
             pin,
@@ -181,18 +192,19 @@ export class Game {
       });
     });
 
-    controllerTwoCounter.run((buttonTwo, playerSessionUrn) => {
-      const message = `Controller 2 pressed ${buttonTwo}`.toUpperCase();
-      console.info(message);
-
+    controllerTwoCounter.run((buttonTwo, playerSession) => {
       const pin = CONTROLLER_TWO_PIN_MAPPING[buttonTwo];
+
+      // const { team } = this.#playerRegister.get(playerSession.urn);
+      const message = `${playerSession.name} wins ${buttonTwo} press`;
+      this.#tepacheLogResource.create(message, playerSession.urn);
 
       pushQueue(
         CONTROLLER_TWO_PIN_MAPPING[buttonTwo],
         'down',
         () => {
           onFlush(
-            playerSessionUrn,
+            playerSession.urn,
             { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
             {
               pin,
@@ -208,7 +220,7 @@ export class Game {
         'up',
         () => {
           onFlush(
-            playerSessionUrn,
+            playerSession.urn,
             { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
             {
               pin,

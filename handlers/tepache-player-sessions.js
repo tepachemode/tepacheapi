@@ -57,7 +57,8 @@ export function tepachePlayerSessionsGetHandler(
 export function tepachePlayerSessionsPostHandler(
   authentication,
   tepachePlayerSessions,
-  generateAnonymous
+  generateAnonymous,
+  tepacheLogs
 ) {
   return {
     handler: async (request, h) => {
@@ -87,6 +88,8 @@ export function tepachePlayerSessionsPostHandler(
 
         const documentSnapshot = await documentReference.get();
         const response = serialize(documentSnapshot, request.url);
+
+        tepacheLogs.create(`Player ${name} joined`, gameSessionUrn);
 
         return h
           .response(response)

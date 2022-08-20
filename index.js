@@ -20,6 +20,7 @@ import { TepacheGames } from './resources/games.js';
 import { TepacheHardwareInputs } from './resources/hardware-inputs.js';
 import { TepachePlayerSessions } from './resources/player-sessions.js';
 import { TepacheSessionCaptures } from './resources/session-captures.js';
+import { TepacheLogs } from './resources/logs.js';
 import { Authentication } from './services/authentication.js';
 import { Firebase } from './services/firebase.js';
 import { Firestore } from './services/firestore.js';
@@ -38,8 +39,13 @@ const tepacheGameSessions = new TepacheGameSessions(firestore);
 const tepacheGames = new TepacheGames(firestore);
 const tepacheHardwareInputs = new TepacheHardwareInputs(firestore);
 const tepacheSessionCaptures = new TepacheSessionCaptures(firestore);
+const tepacheLogs = new TepacheLogs(firestore);
 
-const gameFacade = new GameFacade(tepacheGameSessions, tepacheHardwareInputs);
+const gameFacade = new GameFacade(
+  tepacheGameSessions,
+  tepacheHardwareInputs,
+  tepacheLogs
+);
 
 const PORT = process.env.PORT || 8484;
 
@@ -162,7 +168,8 @@ function generateAnonymous() {
     ...tepachePlayerSessionsPostHandler(
       authentication,
       tepachePlayerSessions,
-      generateAnonymous
+      generateAnonymous,
+      tepacheLogs
     ),
   });
 
@@ -207,7 +214,8 @@ function generateAnonymous() {
       tepacheSessionCaptures,
       tepacheGameSessions,
       tepachePlayerSessions,
-      gameFacade
+      gameFacade,
+      tepacheLogs
     ),
   });
 

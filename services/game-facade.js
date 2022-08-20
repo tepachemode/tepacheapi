@@ -6,13 +6,16 @@ export class GameFacade {
 
   #hardwareInputResource;
 
+  #tepacheLogResource;
+
   #gameSessionRegister;
 
   #unsubscribeHandler;
 
-  constructor(gameSessionResource, hardwareInputResource) {
+  constructor(gameSessionResource, hardwareInputResource, tepacheLogResource) {
     this.#gameSessionResource = gameSessionResource;
     this.#hardwareInputResource = hardwareInputResource;
+    this.#tepacheLogResource = tepacheLogResource;
 
     this.#gameSessionRegister = new Map();
   }
@@ -23,12 +26,16 @@ export class GameFacade {
    * @param {DocumentSnapshot} gameSession - The game session to add
    * @returns {Promise<void>}
    */
-  onGameAdded(gameSessionId, gameSession) {
-    if (this.#gameSessionRegister.has(gameSessionId)) {
+  onGameAdded(gameSessionUrn, gameSession) {
+    if (this.#gameSessionRegister.has(gameSessionUrn)) {
       return;
     }
 
-    const game = new Game(gameSession, this.#hardwareInputResource);
+    const game = new Game(
+      gameSession,
+      this.#hardwareInputResource,
+      this.#tepacheLogResource
+    );
 
     game.start((playerSessionUrn, { button, type }, { direction, pin }) => {
       // Non-blocking call to create hardware input
@@ -48,7 +55,7 @@ export class GameFacade {
         });
     });
 
-    this.#gameSessionRegister.set(gameSession.id, game);
+    this.#gameSessionRegister.set(gameSessionUrn, game);
   }
 
   /**
@@ -58,17 +65,17 @@ export class GameFacade {
    * @returns {Promise<void>}
    */
   onGameRemoved(gameSession) {
-    if (!this.#gameSessionRegister.has(gameSession.id)) {
+    if (!this.#gameSessionRegister.has(gameSession.urn)) {
       return;
     }
 
-    const game = this.#gameSessionRegister.get(gameSession.id);
+    const game = this.#gameSessionRegister.get(gameSession.urn);
     game.stop();
-    this.#gameSessionRegister.delete(gameSession.id);
+    this.#gameSessionRegister.delete(gameSession.urn);
   }
 
   onGameModified(gameSession) {
-    const hasGame = this.#gameSessionRegister.has(gameSession.id);
+    const hasGame = this.#gameSessionRegister.has(gameSession.urn);
 
     if (!hasGame) {
       this.onGameAdded(gameSession);
@@ -80,17 +87,16 @@ export class GameFacade {
       (querySnapshot) => {
         querySnapshot.docChanges().forEach((change) => {
           const gameSession = change.doc.data();
-          const gameId = change.doc.id;
           const type = change.type;
           switch (type) {
             case 'added':
-              this.onGameAdded(gameId, gameSession);
+              this.onGameAdded(gameSession.urn, gameSession);
               break;
             case 'modified':
-              this.onGameModified(gameSession);
+              this.onGameModified(gameSession.urn);
               break;
             case 'removed':
-              this.onGameRemoved(gameId);
+              this.onGameRemoved(gameSession.urn);
               break;
           }
         });
@@ -107,7 +113,7 @@ export class GameFacade {
   }
 
   press(sessionCapture, gameSession, playerSession) {
-    const game = this.#gameSessionRegister.get(gameSession.id);
+    const game = this.#gameSessionRegister.get(gameSession.urn);
     game.press(sessionCapture, playerSession);
   }
 }
