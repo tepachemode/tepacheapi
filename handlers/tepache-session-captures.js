@@ -78,6 +78,19 @@ export function tepacheSessionCapturesPostHandler(
 
         return h.response('OK').code(200);
       },
+      plugins: {
+        'hapi-rate-limit': {
+          enabled: true,
+          pathLimit: 100,
+          userLimit: 4,
+          pathCache: {
+            expiresIn: 1000,
+          },
+          userCache: {
+            expiresIn: 1000,
+          },
+        },
+      },
     },
   };
 }

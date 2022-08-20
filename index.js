@@ -91,10 +91,13 @@ function generateAnonymous() {
       plugin: hapiRateLimit,
       options: {
         enabled: true,
-        pathLimit: false,
-        userLimit: 1000,
+        pathLimit: 1000,
+        userLimit: 100,
+        pathCache: {
+          expiresIn: 1000,
+        },
         userCache: {
-          expiresIn: 10000,
+          expiresIn: 1000,
         },
         headers: false,
       },

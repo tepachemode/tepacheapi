@@ -192,44 +192,46 @@ export class Game {
       });
     });
 
-    controllerTwoCounter.run((buttonTwo, playerSession) => {
-      const pin = CONTROLLER_TWO_PIN_MAPPING[buttonTwo];
+    // controllerTwoCounter.run((buttonTwo, playerSession) => {
+    //   const pin = CONTROLLER_TWO_PIN_MAPPING[buttonTwo];
 
-      // const { team } = this.#playerRegister.get(playerSession.urn);
-      const message = `${playerSession.name} pressed ${buttonTwo}`;
-      this.#tepacheLogResource.create(message, playerSession.urn);
+    //   // const { team } = this.#playerRegister.get(playerSession.urn);
+    //   const message = `${playerSession.name} pressed ${buttonTwo}`;
+    //   this.#tepacheLogResource.create(message, playerSession.urn);
 
-      pushQueue(
-        CONTROLLER_TWO_PIN_MAPPING[buttonTwo],
-        'down',
-        () => {
-          onFlush(
-            playerSession.urn,
-            { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
-            {
-              pin,
-              direction: 'down',
-            }
-          );
-        },
-        true
-      );
+    //   pushQueue(
+    //     CONTROLLER_TWO_PIN_MAPPING[buttonTwo],
+    //     'down',
+    //     () => {
+    //       onFlush(
+    //         playerSession.urn,
+    //         { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
+    //         {
+    //           pin,
+    //           direction: 'down',
+    //         }
+    //       );
+    //     },
+    //     true
+    //   );
 
-      pushQueue(
-        pin,
-        'up',
-        () => {
-          onFlush(
-            playerSession.urn,
-            { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
-            {
-              pin,
-              direction: 'up',
-            }
-          );
-        },
-        true
-      );
-    });
+    //   pushQueue(
+    //     pin,
+    //     'up',
+    //     () => {
+    //       onFlush(
+    //         playerSession.urn,
+    //         { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
+    //         {
+    //           pin,
+    //           direction: 'up',
+    //         }
+    //       );
+    //     },
+    //     true
+    //   );
+    // });
   }
+
+  stop() {}
 }
