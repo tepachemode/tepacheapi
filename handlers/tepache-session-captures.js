@@ -12,36 +12,37 @@ export function tepacheSessionCapturesPostHandler(
       handler: async (request, h) => {
         const button = request.payload.button;
         const gameSessionUrn = request.payload.gameSessionUrn;
-        const { authorization } = request.auth.credentials;
-        const checkRevoked = true;
+        const playerSessionUrn = request.payload.playerSessionUrn;
 
         if (!gameSessionUrn) {
           return h.response('No game session URN').code(400);
+        }
+
+        if (!playerSessionUrn) {
+          return h.response('No player session URN').code(400);
         }
 
         if (!button) {
           return h.response('No button').code(400);
         }
 
-        let uid;
-        try {
-          const claim = await getAuth().verifyIdToken(
-            authorization,
-            checkRevoked
-          );
-          uid = claim.uid;
-        } catch (error) {
-          return h
-            .response({
-              error: 'Invalid token',
-            })
-            .code(403);
-        }
-
         // Will already determine if the specified game session is active or not
-        const gameSessionQuerySnapshot = await tepacheGameSessions
+        const gameSessionRequest = tepacheGameSessions
           .findActiveByUrn(gameSessionUrn)
           .get();
+
+        // Find matching active player session
+        const playerSessionRequest = tepachePlayerSessions
+          .findActiveByUrn(playerSessionUrn)
+          .get();
+
+        const gameSessionQuerySnapshot = await gameSessionRequest;
+        const playerSessionQuerySnapshot = await playerSessionRequest;
+
+        // No active player session found by game session for the current user
+        if (playerSessionQuerySnapshot.empty) {
+          return h.response('Unauthorized').code(401);
+        }
 
         // No active game session found per URN so reject
         if (gameSessionQuerySnapshot.empty) {
@@ -49,17 +50,6 @@ export function tepacheSessionCapturesPostHandler(
         }
 
         const gameSession = gameSessionQuerySnapshot.docs[0].data();
-
-        // Find matching active player session
-        const playerSessionQuerySnapshot = await tepachePlayerSessions
-          .getActiveByGameSessionUrnAndUser(gameSession.urn, uid)
-          .get();
-
-        // No active player session found by game session for the current user
-        if (playerSessionQuerySnapshot.empty) {
-          return h.response('Unauthorized').code(401);
-        }
-
         const playerSession = playerSessionQuerySnapshot.docs[0].data();
 
         const sessionCaptureSnapshot =
@@ -81,8 +71,8 @@ export function tepacheSessionCapturesPostHandler(
       plugins: {
         'hapi-rate-limit': {
           enabled: true,
-          pathLimit: 100,
-          userLimit: 4,
+          pathLimit: 200,
+          userLimit: 6,
           pathCache: {
             expiresIn: 1000,
           },

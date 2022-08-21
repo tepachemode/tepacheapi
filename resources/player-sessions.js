@@ -120,4 +120,25 @@ export class TepachePlayerSessions extends Resource {
 
     return documentReference;
   }
+
+  /**
+   * Find active player session by urn.
+   * @param {String} playerSessionUrn - The urn of the player session.
+   * @returns {Promise<DocumentReference>}
+   **/
+  findActiveByUrn(playerSessionUrn) {
+    assert(
+      validateUrn(playerSessionUrn),
+      'playerSessionUrn is required to be a valid urn'
+    );
+
+    return this.#firestore
+      .findDocs(this.collectionName, {
+        field: 'urn',
+        operator: '==',
+        value: playerSessionUrn,
+      })
+      .orderBy('createdAt')
+      .limitToLast(1);
+  }
 }
