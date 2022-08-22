@@ -93,10 +93,14 @@ function generateAnonymous() {
         enabled: true,
         pathLimit: 1000,
         userLimit: 100,
+        userPathLimit: 10,
+        userCache: {
+          expiresIn: 1000,
+        },
         pathCache: {
           expiresIn: 1000,
         },
-        userCache: {
+        userPathCache: {
           expiresIn: 1000,
         },
         headers: false,
