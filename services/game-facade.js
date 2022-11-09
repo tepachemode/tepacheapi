@@ -8,15 +8,24 @@ export class GameFacade {
 
   #tepacheLogResource;
 
+  #tepachePlayerSessionResource;
+
+  #recentlyActivePlayerCount = 0;
+
   #gameSessionRegister;
 
   #unsubscribeHandler;
 
-  constructor(gameSessionResource, hardwareInputResource, tepacheLogResource) {
+  constructor(
+    gameSessionResource,
+    hardwareInputResource,
+    tepacheLogResource,
+    tepachePlayerSessionResource
+  ) {
     this.#gameSessionResource = gameSessionResource;
     this.#hardwareInputResource = hardwareInputResource;
     this.#tepacheLogResource = tepacheLogResource;
-
+    this.#tepachePlayerSessionResource = tepachePlayerSessionResource;
     this.#gameSessionRegister = new Map();
   }
 
@@ -55,7 +64,7 @@ export class GameFacade {
         });
     });
 
-    this.#gameSessionRegister.set(gameSessionUrn, game);
+    this.#gameSessionRegister.set(gameSessionUrn, { game });
   }
 
   /**
@@ -64,26 +73,26 @@ export class GameFacade {
    * @param {DocumentSnapshot} gameSession - The game session to remove
    * @returns {Promise<void>}
    */
-  onGameRemoved(gameSession) {
-    if (!this.#gameSessionRegister.has(gameSession.urn)) {
+  onGameRemoved(gameSessionUrn) {
+    if (!this.#gameSessionRegister.has(gameSessionUrn)) {
       return;
     }
 
-    const game = this.#gameSessionRegister.get(gameSession.urn);
+    const { game } = this.#gameSessionRegister.get(gameSessionUrn);
     game.stop();
-    this.#gameSessionRegister.delete(gameSession.urn);
+    this.#gameSessionRegister.delete(gameSessionUrn);
   }
 
-  onGameModified(gameSession) {
-    const hasGame = this.#gameSessionRegister.has(gameSession.urn);
+  onGameModified(gameSessionUrn, gameSession) {
+    const hasGame = this.#gameSessionRegister.has(gameSessionUrn);
 
     if (!hasGame) {
-      this.onGameAdded(gameSession);
+      this.onGameAdded(gameSessionUrn, gameSession);
     }
   }
 
   subscribe() {
-    this.#unsubscribeHandler = this.#gameSessionResource.onSnapshot(
+    const unsubscribeGameSessionListener = this.#gameSessionResource.onSnapshot(
       (querySnapshot) => {
         querySnapshot.docChanges().forEach((change) => {
           const gameSession = change.doc.data();
@@ -93,7 +102,7 @@ export class GameFacade {
               this.onGameAdded(gameSession.urn, gameSession);
               break;
             case 'modified':
-              this.onGameModified(gameSession.urn);
+              this.onGameModified(gameSession.urn, gameSession);
               break;
             case 'removed':
               this.onGameRemoved(gameSession.urn);
@@ -102,18 +111,45 @@ export class GameFacade {
         });
       }
     );
+
+    // TODO: Listen per game session
+    const unsubscribePlayerSessionListener =
+      this.#tepachePlayerSessionResource.onSnapshot((querySnapshot) => {
+        this.#recentlyActivePlayerCount = 0;
+
+        querySnapshot.forEach((documentSnapshot) => {
+          const lastActivityAt = documentSnapshot.get('lastActivityAt');
+
+          if (
+            lastActivityAt &&
+            lastActivityAt.toMillis() >= Date.now() - 60 * 1000
+          ) {
+            this.#recentlyActivePlayerCount += 1;
+          }
+        });
+
+        console.debug(
+          'Updating active player count',
+          this.#recentlyActivePlayerCount
+        );
+      });
+
+    this.#unsubscribeHandler = () => {
+      unsubscribePlayerSessionListener();
+      unsubscribeGameSessionListener();
+    };
   }
 
   unsubscribe() {
     this.#unsubscribeHandler();
-    this.#gameSessionRegister.forEach((game) => {
+    this.#gameSessionRegister.forEach(({ game }) => {
       game.stop();
     });
     this.#gameSessionRegister.clear();
   }
 
   press(sessionCapture, gameSession, playerSession) {
-    const game = this.#gameSessionRegister.get(gameSession.urn);
-    game.press(sessionCapture, playerSession);
+    const { game } = this.#gameSessionRegister.get(gameSession.urn);
+    game.press(sessionCapture, playerSession, this.#recentlyActivePlayerCount);
   }
 }

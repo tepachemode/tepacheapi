@@ -13,7 +13,11 @@ import {
   tepachePlayerSessionsPatchHandler,
   tepachePlayerSessionsPostHandler,
 } from './handlers/tepache-player-sessions.js';
-import { tepacheSessionCapturesPostHandler } from './handlers/tepache-session-captures.js';
+import { heartbeatHandler } from './handlers/heartbeat.js';
+import {
+  tepacheSessionCapturesPostHandler,
+  tepacheSessionCapturesTwilioSMSHandler,
+} from './handlers/tepache-session-captures.js';
 import { CORS } from './lib/config.js';
 import { TepacheGameSessions } from './resources/game-sessions.js';
 import { TepacheGames } from './resources/games.js';
@@ -44,7 +48,8 @@ const tepacheLogs = new TepacheLogs(firestore);
 const gameFacade = new GameFacade(
   tepacheGameSessions,
   tepacheHardwareInputs,
-  tepacheLogs
+  tepacheLogs,
+  tepachePlayerSessions
 );
 
 const PORT = process.env.PORT || 8484;
@@ -170,6 +175,12 @@ function generateAnonymous() {
   });
 
   server.route({
+    method: 'GET',
+    path: '/api/tepache-player-sessions/{playerSessionUrn}',
+    ...tepachePlayerSessionsGetHandler(authentication, tepachePlayerSessions),
+  });
+
+  server.route({
     method: 'POST',
     path: '/api/tepache-player-sessions',
     ...tepachePlayerSessionsPostHandler(
@@ -188,6 +199,12 @@ function generateAnonymous() {
       tepachePlayerSessions,
       generateAnonymous
     ),
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/socket/heartbeat',
+    ...heartbeatHandler(authentication, tepachePlayerSessions),
   });
 
   server.route({
@@ -223,6 +240,17 @@ function generateAnonymous() {
       tepachePlayerSessions,
       gameFacade,
       tepacheLogs
+    ),
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/sms/tepache-session-captures', // create
+    ...tepacheSessionCapturesTwilioSMSHandler(
+      tepacheSessionCaptures,
+      tepacheGameSessions,
+      tepachePlayerSessions,
+      gameFacade
     ),
   });
 

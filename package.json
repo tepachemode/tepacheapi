@@ -31,6 +31,7 @@
     "hapi-pino": "^10.1.0",
     "hapi-rate-limit": "^5.0.1",
     "joi": "^17.6.0",
+    "node-cache": "^5.1.2",
     "twilio": "^3.80.1"
   },
   "devDependencies": {

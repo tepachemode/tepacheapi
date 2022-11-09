@@ -48,6 +48,7 @@ export function tepacheGameSessionsPostHandler(
           .header('Content-Type', 'application/vnd.api+json')
           .code(200);
       } catch (error) {
+        console.error(error);
         return h.response('Server error').code(500);
       }
     },

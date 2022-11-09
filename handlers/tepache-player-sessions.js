@@ -9,6 +9,7 @@ export function tepachePlayerSessionsGetHandler(
 ) {
   return {
     handler: async (request, h) => {
+      const { playerSessionUrn } = request.params;
       const { gameSessionUrn } = request.query;
       const { authorization } = request.headers;
       const checkRevoked = true;
@@ -133,14 +134,11 @@ export function tepachePlayerSessionsPatchHandler(
       }
 
       try {
-        const { uid } = await getAuth().verifyIdToken(
-          authorization,
-          checkRevoked
-        );
+        await getAuth().verifyIdToken(authorization, checkRevoked);
 
-        const documentReference = await tepachePlayerSessions.updateName(
+        const documentReference = await tepachePlayerSessions.update(
           playerSessionDocumentId,
-          name
+          { name }
         );
 
         const documentSnapshot = await documentReference.get();

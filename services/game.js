@@ -133,7 +133,7 @@ export class Game {
     this.#playerRegister.set(playerSession.urn, team);
   }
 
-  press(sessionCapture, playerSession) {
+  press(sessionCapture, playerSession, activePlayerCount) {
     if (!this.#playerRegister.has(playerSession.urn)) {
       this.assign(playerSession);
     }
@@ -156,20 +156,51 @@ export class Game {
 
     // const message = `${playerSession.name} voted for ${button?.toUpperCase()}`;
     // this.#tepacheLogResource.create(message, playerSession.urn);
-    counter.vote(button, playerSession);
+    if (activePlayerCount > 1) {
+      counter.vote(button, playerSession);
+    } else {
+      console.debug('Queue mode');
+      const pin = CONTROLLER_TWO_PIN_MAPPING[button];
+      //const team = this.#playerRegister.get(playerSession.urn);
+      const message = `${playerSession.name} : pressed ${button}`;
+      this.#tepacheLogResource.create(message, playerSession.urn);
+
+      pushQueue(CONTROLLER_TWO_PIN_MAPPING[button], 'down', () => {
+        this.onFlush(
+          playerSession.urn,
+          { button: button, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
+          {
+            pin,
+            direction: 'down',
+          }
+        );
+      });
+
+      pushQueue(pin, 'up', () => {
+        this.onFlush(
+          playerSession.urn,
+          { button: button, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
+          {
+            pin,
+            direction: 'up',
+          }
+        );
+      });
+    }
   }
 
   start(onFlush) {
     /**
      * Initiate forever cycling of voting
      */
+    this.onFlush = onFlush;
     controllerOneCounter.run((buttonOne, playerSession) => {
-      const pin = CONTROLLER_ONE_PIN_MAPPING[buttonOne];
+      const pin = CONTROLLER_TWO_PIN_MAPPING[buttonOne];
       //const team = this.#playerRegister.get(playerSession.urn);
-      const message = `${playerSession.name} pressed ${buttonOne}`;
+      const message = `${playerSession.name} : pressed ${buttonOne}`;
       this.#tepacheLogResource.create(message, playerSession.urn);
 
-      pushQueue(CONTROLLER_ONE_PIN_MAPPING[buttonOne], 'down', () => {
+      pushQueue(CONTROLLER_TWO_PIN_MAPPING[buttonOne], 'down', () => {
         onFlush(
           playerSession.urn,
           { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_PRESS },

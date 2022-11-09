@@ -5,8 +5,11 @@ import { createForNamespace } from '../lib/urn.js';
 import { urn as validateUrn } from '../lib/validate.js';
 import { Firestore } from '../services/firestore.js';
 import { PLAYER_SESSION_STATE } from '../constants/player-session-state.js';
+import NodeCache from 'node-cache';
 export class TepachePlayerSessions extends Resource {
   #firestore;
+
+  #cache;
 
   namespace = 'tepache-player-session';
 
@@ -14,6 +17,12 @@ export class TepachePlayerSessions extends Resource {
 
   constructor(firestore) {
     super();
+
+    this.#cache = new NodeCache({
+      stdTTL: 6,
+      checkperiod: 12,
+      useClones: false,
+    });
 
     this.#firestore = firestore;
   }
@@ -101,12 +110,11 @@ export class TepachePlayerSessions extends Resource {
    * Update the name for a player session.
    *
    * @param {String} playerSessionDocumentId - The id of the player session document.
-   * @param {String} name - The updated name of the player.
+   * @param {Object} updatePayload - Payload with document overwrite
    * @returns {Promise<WriteResult}
    */
-  async updateName(playerSessionDocumentId, name = '') {
+  async update(playerSessionDocumentId, updatePayload = {}) {
     assert(playerSessionDocumentId, 'playerSessionDocumentId is required');
-    assert(name, 'name is required');
 
     const documentReference = await this.#firestore.getDocById(
       this.collectionName,
@@ -114,7 +122,28 @@ export class TepachePlayerSessions extends Resource {
     );
 
     await Firestore.updateDocumentReference(documentReference, {
-      name,
+      ...updatePayload,
+      lastActivityAt: Timestamp.now(),
+    });
+
+    return documentReference;
+  }
+
+  /**
+   * Update last activity for a player session.
+   *
+   * @param {String} playerSessionDocumentId - The id of the player session document.
+   * @returns {Promise<WriteResult}
+   */
+  async updateLastActivityAt(playerSessionDocumentId) {
+    assert(playerSessionDocumentId, 'playerSessionDocumentId is required');
+
+    const documentReference = await this.#firestore.getDocById(
+      this.collectionName,
+      playerSessionDocumentId
+    );
+
+    await Firestore.updateDocumentReference(documentReference, {
       lastActivityAt: Timestamp.now(),
     });
 
@@ -132,7 +161,13 @@ export class TepachePlayerSessions extends Resource {
       'playerSessionUrn is required to be a valid urn'
     );
 
-    return this.#firestore
+    const cachedRecord = this.#cache.get(playerSessionUrn);
+
+    if (cachedRecord) {
+      return cachedRecord;
+    }
+
+    const record = this.#firestore
       .findDocs(this.collectionName, {
         field: 'urn',
         operator: '==',
@@ -140,5 +175,36 @@ export class TepachePlayerSessions extends Resource {
       })
       .orderBy('createdAt')
       .limitToLast(1);
+
+    this.#cache.set(playerSessionUrn, record);
+
+    return record;
+  }
+
+  findRecentlyActive() {
+    const cachedRecord = this.#cache.get('recently-active');
+    const now = new Date();
+
+    if (cachedRecord) {
+      return cachedRecord;
+    }
+
+    const record = this.#firestore.findDocs(this.collectionName, {
+      field: 'lastActivityAt',
+      operator: '>=',
+      value: new Date(now.getTime() - 30 * 1000 * 60),
+    });
+
+    this.#cache.set('recently-active', record);
+
+    return record;
+  }
+
+  /**
+   * Listen for game session changes
+   * @returns {Promise<DocumentSnapshot[]>}
+   */
+  onSnapshot(callback) {
+    return this.#firestore.onSnapshot(this.collectionName, callback);
   }
 }
