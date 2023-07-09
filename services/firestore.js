@@ -59,6 +59,26 @@ export class Firestore {
   }
 
   /**
+   * Get a document from a collection by urn
+   *
+   * @param {String} collectionName
+   * @param {String} urn
+   *
+   * @returns Promise<DocumentReference>
+   */
+  async getDocByUrn(collectionName, urn) {
+    const querySnapshot = await this.findDocs(collectionName, {
+      field: 'urn',
+      operator: '==',
+      value: urn,
+    })
+      .limit(1)
+      .get();
+
+    return querySnapshot.docs.length && querySnapshot.docs[0].ref;
+  }
+
+  /**
    * Add a document to a collection.
    *
    * @param {String} collectionName
@@ -98,4 +118,6 @@ export class Firestore {
   static async deleteDocumentReference(documentReference) {
     return await documentReference.delete();
   }
+
+  static QUERY_SIZE_LIMIT = 1000;
 }

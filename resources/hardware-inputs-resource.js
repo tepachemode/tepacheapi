@@ -2,7 +2,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { assert } from '../lib/assert.js';
 import { Resource } from '../lib/resource.js';
 import { buttonInteraction as validateButtonInteraction } from '../lib/validate.js';
-export class TepacheHardwareInputs extends Resource {
+
+export class HardwareInputsResource extends Resource {
   #firestore;
 
   namespace = 'tepache-hardware-input';
@@ -24,17 +25,17 @@ export class TepacheHardwareInputs extends Resource {
    * @returns
    */
   async createForSessions(
-    gameSessionUrn,
-    playerSessionUrn = null,
+    gameSessionId,
+    playerSessionId = null,
     { button, type }
   ) {
-    assert(gameSessionUrn, 'gameSession is required');
+    assert(gameSessionId, 'gameSessionId is required');
     assert(button, 'button is required');
     assert(validateButtonInteraction(type), 'type is required');
 
     const document = {
-      gameSessionUrn: gameSessionUrn,
-      playerSessionUrn: playerSessionUrn,
+      gameSessionId,
+      playerSessionId,
       button,
       type,
       createdAt: Timestamp.now(),

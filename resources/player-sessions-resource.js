@@ -1,12 +1,13 @@
 import { Timestamp } from 'firebase-admin/firestore';
+import NodeCache from 'node-cache';
+import { PLAYER_SESSION_STATE } from '../constants/player-session-state.js';
 import { assert } from '../lib/assert.js';
 import { Resource } from '../lib/resource.js';
-import { createForNamespace } from '../lib/urn.js';
+import { createForNamespace, isUrn } from '../lib/urn.js';
 import { urn as validateUrn } from '../lib/validate.js';
 import { Firestore } from '../services/firestore.js';
-import { PLAYER_SESSION_STATE } from '../constants/player-session-state.js';
-import NodeCache from 'node-cache';
-export class TepachePlayerSessions extends Resource {
+
+export class PlayerSessionsResource extends Resource {
   #firestore;
 
   #cache;
@@ -113,13 +114,23 @@ export class TepachePlayerSessions extends Resource {
    * @param {Object} updatePayload - Payload with document overwrite
    * @returns {Promise<WriteResult}
    */
-  async update(playerSessionDocumentId, updatePayload = {}) {
-    assert(playerSessionDocumentId, 'playerSessionDocumentId is required');
+  async update(playerSessionUrn, updatePayload = {}) {
+    assert(playerSessionUrn, 'playerSessionUrn is required');
 
-    const documentReference = await this.#firestore.getDocById(
-      this.collectionName,
-      playerSessionDocumentId
-    );
+    let documentReference;
+
+    // Migration to URN based document lookup
+    if (isUrn(playerSessionUrn)) {
+      documentReference = await this.#firestore.getDocByUrn(
+        this.collectionName,
+        playerSessionUrn
+      );
+    } else {
+      documentReference = await this.#firestore.getDocById(
+        this.collectionName,
+        playerSessionUrn
+      );
+    }
 
     await Firestore.updateDocumentReference(documentReference, {
       ...updatePayload,
@@ -201,10 +212,53 @@ export class TepachePlayerSessions extends Resource {
   }
 
   /**
+   *
+   * @returns {Promise<QuerySnapshot>}
+   */
+  async getByGameSessionUrn(gameSessionUrn) {
+    assert(
+      validateUrn(gameSessionUrn),
+      'gameSessionUrn is required to be a valid urn'
+    );
+
+    return this.#firestore
+      .findDocs(this.collectionName, {
+        field: 'gameSessionUrn',
+        operator: '==',
+        value: gameSessionUrn,
+      })
+      .limit(Firestore.QUERY_SIZE_LIMIT);
+  }
+
+  /**
    * Listen for game session changes
    * @returns {Promise<DocumentSnapshot[]>}
    */
   onSnapshot(callback) {
     return this.#firestore.onSnapshot(this.collectionName, callback);
+  }
+
+  findDocs(...args) {
+    return this.#firestore.findDocs(this.collectionName, ...args);
+  }
+
+  /**
+   *
+   */
+  getDocById(playerSessionId) {
+    const cachedRecord = this.#cache.get(playerSessionId);
+
+    if (cachedRecord) {
+      return cachedRecord;
+    }
+
+    const record = this.#firestore.getDocById(
+      this.collectionName,
+      playerSessionId
+    );
+
+    this.#cache.set(playerSessionId, record);
+
+    return record;
   }
 }

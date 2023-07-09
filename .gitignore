@@ -6,3 +6,6 @@ node_modules/
 
 # Firebase
 *adminsdk*
+
+# Dotenv
+.env

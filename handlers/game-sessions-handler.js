@@ -1,11 +1,10 @@
 import Joi from 'joi';
-import { getAuth } from 'firebase-admin/auth';
 import { serialize } from '../lib/serialize.js';
 
-export function tepacheGameSessionsPostHandler(
+export function gameSessionsPostHandler(
   authentication,
-  tepacheGameSessions,
-  tepacheGames
+  gameSessionsResource,
+  gamesResource
 ) {
   return {
     handler: async (request, h) => {
@@ -22,7 +21,7 @@ export function tepacheGameSessionsPostHandler(
         // await getAuth().setCustomUserClaims(uid, { admin: true }); // Delete
 
         // Find matching game to seed the game session
-        const games = await tepacheGames.findByUrn(gameUrn).get();
+        const games = await gamesResource.findByUrn(gameUrn).get();
 
         if (games.empty) {
           return h
@@ -34,11 +33,14 @@ export function tepacheGameSessionsPostHandler(
 
         const game = games.docs[0].data();
 
-        const documentReference = await tepacheGameSessions.createByGame(game, {
-          name,
-          description,
-          expiresOn,
-        });
+        const documentReference = await gameSessionsResource.createByGame(
+          game,
+          {
+            name,
+            description,
+            expiresOn,
+          }
+        );
 
         const documentSnapshot = await documentReference.get();
         const response = serialize(documentSnapshot, request.url);

@@ -2,7 +2,7 @@ import { assert } from '../lib/assert.js';
 import { Resource } from '../lib/resource.js';
 import { urn as validateUrn } from '../lib/validate.js';
 
-export class TepacheGames extends Resource {
+export class GamesResource extends Resource {
   #firestore;
 
   namespace = 'tepache-game';

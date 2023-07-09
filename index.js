@@ -1,35 +1,40 @@
-/**
- * TODO: Delete this entrypoint following clean up of index.js
- */
-
 import hapiBasic from '@hapi/basic';
 import Hapi from '@hapi/hapi';
 import Nes from '@hapi/nes';
 import hapiPino from 'hapi-pino';
 import hapiRateLimit from 'hapi-rate-limit';
-import { tepacheGameSessionsPostHandler } from './handlers/tepache-game-sessions.js';
+import { SESSION_MAX } from './constants/session-max.js';
+import { heartbeatHandler } from './handlers/heartbeat-handler.js';
+import { gameSessionsPostHandler } from './handlers/game-sessions-handler.js';
 import {
-  tepachePlayerSessionsGetHandler,
-  tepachePlayerSessionsPatchHandler,
-  tepachePlayerSessionsPostHandler,
-} from './handlers/tepache-player-sessions.js';
-import { heartbeatHandler } from './handlers/heartbeat.js';
+  playerSessionsFindHandler,
+  playerSessionsGetHandler,
+  playerSessionsPatchHandler,
+  playerSessionsPostHandler,
+} from './handlers/player-sessions-handler.js';
 import {
-  tepacheSessionCapturesPostHandler,
-  tepacheSessionCapturesTwilioSMSHandler,
-} from './handlers/tepache-session-captures.js';
-import { CORS } from './lib/config.js';
-import { TepacheGameSessions } from './resources/game-sessions.js';
-import { TepacheGames } from './resources/games.js';
-import { TepacheHardwareInputs } from './resources/hardware-inputs.js';
-import { TepachePlayerSessions } from './resources/player-sessions.js';
-import { TepacheSessionCaptures } from './resources/session-captures.js';
-import { TepacheLogs } from './resources/logs.js';
+  sessionCapturesPostHandler,
+  sessionCapturesTwilioSMSHandler,
+} from './handlers/session-captures-handler.js';
+import { CORS } from './lib/constants.js';
+import { GameSessionsResource } from './resources/game-sessions-resource.js';
+import { GamesResource } from './resources/games-resource.js';
+import { HardwareInputsResource } from './resources/hardware-inputs-resource.js';
+import { LogsResource } from './resources/logs-resource.js';
+import { PlayerSessionsResource } from './resources/player-sessions-resource.js';
+import { AdminsResource } from './resources/admins-resource.js';
+import { SessionCapturesResource } from './resources/session-captures-resource.js';
 import { Authentication } from './services/authentication.js';
 import { Firebase } from './services/firebase.js';
 import { Firestore } from './services/firestore.js';
 import { GameFacade } from './services/game-facade.js';
-import { SESSION_MAX } from './constants/session-max.js';
+import PubNub from 'pubnub';
+import {
+  PORT,
+  PUBNUB_SUBSCRIBE_KEY,
+  PUBNUB_PUBLISH_KEY,
+  PUBNUB_USER_ID,
+} from 'config';
 
 const firebase = new Firebase();
 
@@ -38,21 +43,34 @@ await firebase.register();
 const firestore = new Firestore(firebase);
 const authentication = new Authentication(firebase);
 
-const tepachePlayerSessions = new TepachePlayerSessions(firestore);
-const tepacheGameSessions = new TepacheGameSessions(firestore);
-const tepacheGames = new TepacheGames(firestore);
-const tepacheHardwareInputs = new TepacheHardwareInputs(firestore);
-const tepacheSessionCaptures = new TepacheSessionCaptures(firestore);
-const tepacheLogs = new TepacheLogs(firestore);
+const playerSessionsResource = new PlayerSessionsResource(firestore);
+const gameSessionsResource = new GameSessionsResource(firestore);
+const gamesResource = new GamesResource(firestore);
+const hardwareInputsResource = new HardwareInputsResource(firestore);
+const sessionCapturesResource = new SessionCapturesResource(firestore);
+const logsResource = new LogsResource(firestore);
+const adminsResource = new AdminsResource(firestore);
+
+const pubnub = new PubNub({
+  userId: PUBNUB_USER_ID,
+  subscribeKey: PUBNUB_SUBSCRIBE_KEY,
+  publishKey: PUBNUB_PUBLISH_KEY,
+  logVerbosity: false,
+  ssl: true,
+  heartbeatInterval: 12,
+  restore: false,
+  keepAlive: false,
+  suppressLeaveEvents: true,
+});
 
 const gameFacade = new GameFacade(
-  tepacheGameSessions,
-  tepacheHardwareInputs,
-  tepacheLogs,
-  tepachePlayerSessions
+  gameSessionsResource,
+  hardwareInputsResource,
+  logsResource,
+  playerSessionsResource,
+  sessionCapturesResource,
+  pubnub
 );
-
-const PORT = process.env.PORT || 8484;
 
 let sessionIncrement = 0;
 
@@ -161,42 +179,46 @@ function generateAnonymous() {
   server.route({
     method: 'POST',
     path: '/api/tepache-game-sessions', // create
-    ...tepacheGameSessionsPostHandler(
+    ...gameSessionsPostHandler(
       authentication,
-      tepacheGameSessions,
-      tepacheGames
+      gameSessionsResource,
+      gamesResource
     ),
   });
 
   server.route({
     method: 'GET',
-    path: '/api/tepache-player-sessions',
-    ...tepachePlayerSessionsGetHandler(authentication, tepachePlayerSessions),
+    path: '/api/tepache-player-sessions/{playerSessionUrn}',
+    ...playerSessionsFindHandler(authentication, playerSessionsResource),
   });
 
   server.route({
     method: 'GET',
-    path: '/api/tepache-player-sessions/{playerSessionUrn}',
-    ...tepachePlayerSessionsGetHandler(authentication, tepachePlayerSessions),
+    path: '/api/tepache-player-sessions',
+    ...playerSessionsGetHandler(
+      authentication,
+      playerSessionsResource,
+      adminsResource
+    ),
   });
 
   server.route({
     method: 'POST',
     path: '/api/tepache-player-sessions',
-    ...tepachePlayerSessionsPostHandler(
+    ...playerSessionsPostHandler(
       authentication,
-      tepachePlayerSessions,
+      playerSessionsResource,
       generateAnonymous,
-      tepacheLogs
+      logsResource
     ),
   });
 
   server.route({
     method: 'PATCH',
     path: '/api/tepache-player-sessions/{playerSessionDocumentId}',
-    ...tepachePlayerSessionsPatchHandler(
+    ...playerSessionsPatchHandler(
       authentication,
-      tepachePlayerSessions,
+      playerSessionsResource,
       generateAnonymous
     ),
   });
@@ -204,7 +226,7 @@ function generateAnonymous() {
   server.route({
     method: 'POST',
     path: '/api/socket/heartbeat',
-    ...heartbeatHandler(authentication, tepachePlayerSessions),
+    ...heartbeatHandler(authentication, playerSessionsResource),
   });
 
   server.route({
@@ -234,24 +256,32 @@ function generateAnonymous() {
   server.route({
     method: 'POST',
     path: '/api/socket/tepache-session-captures', // create
-    ...tepacheSessionCapturesPostHandler(
-      tepacheSessionCaptures,
-      tepacheGameSessions,
-      tepachePlayerSessions,
+    ...sessionCapturesPostHandler(
+      sessionCapturesResource,
+      gameSessionsResource,
+      playerSessionsResource,
       gameFacade,
-      tepacheLogs
+      logsResource
     ),
   });
 
   server.route({
     method: 'POST',
     path: '/api/sms/tepache-session-captures', // create
-    ...tepacheSessionCapturesTwilioSMSHandler(
-      tepacheSessionCaptures,
-      tepacheGameSessions,
-      tepachePlayerSessions,
+    ...sessionCapturesTwilioSMSHandler(
+      sessionCapturesResource,
+      gameSessionsResource,
+      playerSessionsResource,
       gameFacade
     ),
+  });
+
+  server.route({
+    method: 'GET',
+    path: '/api/ping', // create
+    handler: (request, h) => {
+      return h.response('pong').code(200);
+    },
   });
 
   server.route({

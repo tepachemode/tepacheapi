@@ -1,5 +1,9 @@
 const { initializeApp, cert } = await import('firebase-admin/app');
 import { readFile } from 'node:fs/promises';
+import {
+  FIREBASE_CREDENTIALS_FILE,
+  FIREBASE_STORAGE_BUCKET,
+} from '../config.js';
 
 /**
  * Instantiates a Firebase app.
@@ -13,13 +17,11 @@ export class Firebase {
    * @returns {Promise<App>}
    */
   async register() {
-    const credentials = JSON.parse(
-      await readFile('./tepache-mode-firebase-adminsdk-ek8ng-29a8a3e06c.json')
-    );
+    const credentials = JSON.parse(await readFile(FIREBASE_CREDENTIALS_FILE));
 
     this.#app = await initializeApp({
       credential: cert(credentials),
-      storageBucket: 'tepache-mode.appspot.com',
+      storageBucket: FIREBASE_STORAGE_BUCKET,
     });
 
     return this.#app;

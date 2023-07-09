@@ -9,10 +9,10 @@ const {
   twiml: { MessagingResponse },
 } = Twilio;
 
-export function tepacheSessionCapturesPostHandler(
-  tepacheSessionCaptures,
-  tepacheGameSessions,
-  tepachePlayerSessions,
+export function sessionCapturesPostHandler(
+  sessionCapturesResource,
+  gameSessionsResource,
+  playerSessionsResource,
   gameFacade
 ) {
   return {
@@ -20,15 +20,15 @@ export function tepacheSessionCapturesPostHandler(
       id: '/api/socket/tepache-session-captures',
       handler: async (request, h) => {
         const button = request.payload.button;
-        const gameSessionUrn = request.payload.gameSessionUrn;
-        const playerSessionUrn = request.payload.playerSessionUrn;
+        const gameSessionId = request.payload.gameSessionId;
+        const playerSessionId = request.payload.playerSessionId;
 
-        if (!gameSessionUrn) {
-          return h.response('No game session URN').code(400);
+        if (!gameSessionId) {
+          return h.response('No game session ID').code(400);
         }
 
-        if (!playerSessionUrn) {
-          return h.response('No player session URN').code(400);
+        if (!playerSessionId) {
+          return h.response('No player session ID').code(400);
         }
 
         if (!button) {
@@ -37,9 +37,8 @@ export function tepacheSessionCapturesPostHandler(
 
         const timerStart = Date.now();
         // Will already determine if the specified game session is active or not
-        const gameSessionRequest = tepacheGameSessions
-          .findActiveByUrn(gameSessionUrn)
-          .get();
+        const gameSessionReference =
+          await await gameSessionsResource.getDocById(gameSessionId);
 
         console.debug(
           (Date.now() - timerStart) / 1000,
@@ -47,45 +46,43 @@ export function tepacheSessionCapturesPostHandler(
         );
 
         // Find matching active player session
-        const playerSessionRequest = tepachePlayerSessions
-          .findActiveByUrn(playerSessionUrn)
-          .get();
+        const playerSessionReference =
+          await await playerSessionsResource.getDocById(playerSessionId);
 
         console.debug(
           (Date.now() - timerStart) / 1000,
           'seconds to find player session'
         );
 
-        const gameSessionQuerySnapshot = await gameSessionRequest;
-        const playerSessionQuerySnapshot = await playerSessionRequest;
+        const gameSessionQuerySnapshot = await gameSessionReference.get();
+        const playerSessionQuerySnapshot = await playerSessionReference.get();
 
         // No active player session found by game session for the current user
         if (playerSessionQuerySnapshot.empty) {
           return h.response('Unauthorized').code(401);
         }
 
-        // No active game session found per URN so reject
+        // No active game session found per ID so reject
         if (gameSessionQuerySnapshot.empty) {
           return h.response('Unauthorized').code(401);
         }
 
-        const gameSession = gameSessionQuerySnapshot.docs[0].data();
-        const playerSession = playerSessionQuerySnapshot.docs[0].data();
+        const gameSession = gameSessionQuerySnapshot.data();
 
         gameFacade.press(
           {
-            gameSessionUrn: gameSession.urn,
-            playerSessionUrn: playerSession.urn,
+            gameSessionId: gameSessionQuerySnapshot.id,
+            playerSessionId: playerSessionQuerySnapshot.id,
             button,
             type: BUTTON_INTERACTIONS.BUTTON_PRESS,
           },
           gameSession,
-          playerSession
+          playerSessionReference.id
         );
 
-        tepacheSessionCaptures.createForSessions(
-          gameSession.urn,
-          playerSession.urn,
+        sessionCapturesResource.createForSessions(
+          gameSessionQuerySnapshot.id,
+          playerSessionQuerySnapshot.id,
           {
             button,
             type: BUTTON_INTERACTIONS.BUTTON_PRESS,
@@ -111,10 +108,10 @@ export function tepacheSessionCapturesPostHandler(
   };
 }
 
-export function tepacheSessionCapturesTwilioSMSHandler(
-  tepacheSessionCaptures,
-  tepacheGameSessions,
-  tepachePlayerSessions,
+export function sessionCapturesTwilioSMSHandler(
+  sessionCapturesResource,
+  gameSessionsResource,
+  playerSessionsResource,
   gameFacade
 ) {
   return {
@@ -143,7 +140,7 @@ export function tepacheSessionCapturesTwilioSMSHandler(
 
         const timerStart = Date.now();
         // Will already determine if the specified game session is active or not
-        const gameSessionRequest = tepacheGameSessions
+        const gameSessionRequest = gameSessionsResource
           .findActiveByUrn(gameSessionUrn)
           .get();
 
@@ -153,7 +150,7 @@ export function tepacheSessionCapturesTwilioSMSHandler(
         );
 
         // Find matching active player session
-        const playerSessionRequest = tepachePlayerSessions
+        const playerSessionRequest = playerSessionsResource
           .findActiveByUrn(playerSessionUrn)
           .get();
 
@@ -175,23 +172,23 @@ export function tepacheSessionCapturesTwilioSMSHandler(
           return h.response('Unauthorized').code(401);
         }
 
-        const gameSession = gameSessionQuerySnapshot.docs[0].data();
-        const playerSession = playerSessionQuerySnapshot.docs[0].data();
+        const gameSession = gameSessionQuerySnapshot.docs[0];
+        const playerSession = playerSessionQuerySnapshot.docs[0];
 
         gameFacade.press(
           {
-            gameSessionUrn: gameSession.urn,
-            playerSessionUrn: playerSession.urn,
+            gameSessionId: gameSession.id,
+            playerSessionId: playerSession.id,
             button,
             type: BUTTON_INTERACTIONS.BUTTON_PRESS,
           },
-          gameSession,
-          playerSession
+          gameSession.data(),
+          playerSession.id
         );
 
-        tepacheSessionCaptures.createForSessions(
-          gameSession.urn,
-          playerSession.urn,
+        sessionCapturesResource.createForSessions(
+          gameSession.id,
+          playerSession.id,
           {
             button,
             type: BUTTON_INTERACTIONS.BUTTON_PRESS,

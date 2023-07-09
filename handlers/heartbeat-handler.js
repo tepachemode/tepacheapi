@@ -1,17 +1,15 @@
-import { getAuth } from 'firebase-admin/auth';
-import { deserialize } from '../lib/serialize.js';
-import { CORS } from '../lib/config.js';
+import { CORS } from '../lib/constants.js';
 
-export function heartbeatHandler(authentication, tepachePlayerSessions) {
+export function heartbeatHandler(authentication, playerSessionsResource) {
   return {
     handler: async (request, h) => {
       let { playerSessionDocumentId } = request.payload;
 
       try {
-        await tepachePlayerSessions.update(playerSessionDocumentId);
+        await playerSessionsResource.update(playerSessionDocumentId);
 
         const recentlyActivePlayersReference =
-          await tepachePlayerSessions.findRecentlyActive();
+          await playerSessionsResource.findRecentlyActive();
 
         const recentlyActivePlayersSnapshot =
           await recentlyActivePlayersReference.get();

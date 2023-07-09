@@ -1,21 +1,17 @@
-import { ClockedQueue } from '../lib/queue.js';
+import { BUTTON_INTERACTIONS } from '../constants/button_interactions.js';
 import {
   CONTROLLER_ONE_PIN_MAPPING,
   CONTROLLER_TWO_PIN_MAPPING,
-  PLAYER_ACTIVE_LIFETIME,
+  QUEUE_FLUSH_DOWN_TIME,
+  QUEUE_FLUSH_UP_TIME,
 } from '../lib/constants.js';
 import { DemocracyCounter } from '../lib/democracy-counter.js';
-import { BUTTON_INTERACTIONS } from '../constants/button_interactions.js';
+import { ClockedQueue } from '../lib/queue.js';
 
 const controllerOneCounter = new DemocracyCounter();
 const controllerTwoCounter = new DemocracyCounter();
 const clockedOneQueue = new ClockedQueue();
 const clockedTwoQueue = new ClockedQueue();
-
-const players = new Set();
-const timerMap = {
-  // name: setTimeoutInstance
-};
 
 /**
  * Push to action queue
@@ -47,23 +43,6 @@ function buttonValidate(button) {
   return true;
 }
 
-/**
- * Responder for pin
- *
- * @param {Object} request
- * @param {Object} h
- * @return {Object}
- */
-function insertTimedName(name) {
-  if (name) {
-    players.add(name);
-    clearTimeout(timerMap[name]);
-    timerMap[name] = setTimeout(() => {
-      players.delete(name);
-    }, PLAYER_ACTIVE_LIFETIME);
-  }
-}
-
 class TeamRegister {
   teams = [];
 
@@ -76,20 +55,8 @@ class TeamRegister {
     }
   }
 
-  add(playerSessionUrn) {
-    // const smallestTeam = this.teams.reduce((currentTeam, team) => {
-    //   if (!currentTeam) {
-    //     return team;
-    //   }
-
-    //   if (team.players.length < currentTeam.players.length) {
-    //     return team;
-    //   }
-
-    //   return currentTeam;
-    // });
-
-    this.teams[0].players.push(playerSessionUrn);
+  add(playerSessionId) {
+    this.teams[0].players.push(playerSessionId);
     // return smallestTeam;
     return this.teams[0];
   }
@@ -126,16 +93,14 @@ export class Game {
     );
   }
 
-  assign(playerSession) {
-    const team = this.#teamRegister.add(playerSession.urn);
-    // const message = `${playerSession.name} has joined team ${team.name}`;
-    // this.#tepacheLogResource.create(message, playerSession.urn);
-    this.#playerRegister.set(playerSession.urn, team);
+  assign(playerSessionId) {
+    const team = this.#teamRegister.add(playerSessionId);
+    this.#playerRegister.set(playerSessionId, team);
   }
 
-  press(sessionCapture, playerSession, activePlayerCount) {
-    if (!this.#playerRegister.has(playerSession.urn)) {
-      this.assign(playerSession);
+  press(sessionCapture, playerSessionId) {
+    if (!this.#playerRegister.has(playerSessionId)) {
+      this.assign(playerSessionId);
     }
 
     const { button } = sessionCapture;
@@ -149,44 +114,10 @@ export class Game {
       return;
     }
 
-    // insertTimedName(name);
-
-    const team = this.#playerRegister.get(playerSession.urn);
+    const team = this.#playerRegister.get(playerSessionId);
     const counter = this.#counterRegister.get(team);
 
-    // const message = `${playerSession.name} voted for ${button?.toUpperCase()}`;
-    // this.#tepacheLogResource.create(message, playerSession.urn);
-    if (activePlayerCount > 1) {
-      counter.vote(button, playerSession);
-    } else {
-      console.debug('Queue mode');
-      const pin = CONTROLLER_TWO_PIN_MAPPING[button];
-      //const team = this.#playerRegister.get(playerSession.urn);
-      const message = `${playerSession.name} : pressed ${button}`;
-      this.#tepacheLogResource.create(message, playerSession.urn);
-
-      pushQueue(CONTROLLER_TWO_PIN_MAPPING[button], 'down', () => {
-        this.onFlush(
-          playerSession.urn,
-          { button: button, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
-          {
-            pin,
-            direction: 'down',
-          }
-        );
-      });
-
-      pushQueue(pin, 'up', () => {
-        this.onFlush(
-          playerSession.urn,
-          { button: button, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
-          {
-            pin,
-            direction: 'up',
-          }
-        );
-      });
-    }
+    counter.vote(button, playerSessionId);
   }
 
   start(onFlush) {
@@ -194,74 +125,41 @@ export class Game {
      * Initiate forever cycling of voting
      */
     this.onFlush = onFlush;
-    controllerOneCounter.run((buttonOne, playerSession) => {
+    controllerOneCounter.run((buttonOne, playerSessionId) => {
       const pin = CONTROLLER_TWO_PIN_MAPPING[buttonOne];
-      //const team = this.#playerRegister.get(playerSession.urn);
-      const message = `${playerSession.name} : pressed ${buttonOne}`;
-      this.#tepacheLogResource.create(message, playerSession.urn);
 
-      pushQueue(CONTROLLER_TWO_PIN_MAPPING[buttonOne], 'down', () => {
-        onFlush(
-          playerSession.urn,
-          { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
-          {
-            pin,
-            direction: 'down',
-          }
-        );
-      });
+      pushQueue(
+        CONTROLLER_TWO_PIN_MAPPING[buttonOne],
+        'down',
+        () => {
+          onFlush(
+            playerSessionId,
+            { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
+            {
+              pin,
+              direction: 'down',
+            }
+          );
+        },
+        QUEUE_FLUSH_DOWN_TIME
+      );
 
-      pushQueue(pin, 'up', () => {
-        onFlush(
-          playerSession.urn,
-          { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
-          {
-            pin,
-            direction: 'up',
-          }
-        );
-      });
+      pushQueue(
+        pin,
+        'up',
+        () => {
+          onFlush(
+            playerSessionId,
+            { button: buttonOne, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
+            {
+              pin,
+              direction: 'up',
+            }
+          );
+        },
+        QUEUE_FLUSH_UP_TIME
+      );
     });
-
-    // controllerTwoCounter.run((buttonTwo, playerSession) => {
-    //   const pin = CONTROLLER_TWO_PIN_MAPPING[buttonTwo];
-
-    //   // const { team } = this.#playerRegister.get(playerSession.urn);
-    //   const message = `${playerSession.name} pressed ${buttonTwo}`;
-    //   this.#tepacheLogResource.create(message, playerSession.urn);
-
-    //   pushQueue(
-    //     CONTROLLER_TWO_PIN_MAPPING[buttonTwo],
-    //     'down',
-    //     () => {
-    //       onFlush(
-    //         playerSession.urn,
-    //         { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_PRESS },
-    //         {
-    //           pin,
-    //           direction: 'down',
-    //         }
-    //       );
-    //     },
-    //     true
-    //   );
-
-    //   pushQueue(
-    //     pin,
-    //     'up',
-    //     () => {
-    //       onFlush(
-    //         playerSession.urn,
-    //         { button: buttonTwo, type: BUTTON_INTERACTIONS.BUTTON_RELEASE },
-    //         {
-    //           pin,
-    //           direction: 'up',
-    //         }
-    //       );
-    //     },
-    //     true
-    //   );
-    // });
   }
 
   stop() {}

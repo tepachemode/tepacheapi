@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resource } from '../lib/resource.js';
-export class TepacheLogs extends Resource {
+
+export class LogsResource extends Resource {
   #firestore;
 
   namespace = 'tepache-log';

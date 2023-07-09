@@ -10,7 +10,7 @@ import NodeCache from 'node-cache';
 const DEFAULT_PLAY_MODE = PLAY_MODES.ADMIN_CONTROL;
 const DEFAULT_STATE = GAME_SESSION_STATE.PENDING;
 
-export class TepacheGameSessions extends Resource {
+export class GameSessionsResource extends Resource {
   #firestore;
 
   #cache;
@@ -106,5 +106,21 @@ export class TepacheGameSessions extends Resource {
    */
   onSnapshot(callback) {
     return this.#firestore.onSnapshot(this.collectionName, callback);
+  }
+
+  /**
+   *
+   */
+  getDocById(id) {
+    const cachedRecord = this.#cache.get(id);
+
+    if (cachedRecord) {
+      return cachedRecord;
+    }
+
+    const record = this.#firestore.getDocById(this.collectionName, id);
+
+    this.#cache.set(id, record);
+    return record;
   }
 }
