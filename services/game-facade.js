@@ -1,6 +1,7 @@
 import { Game } from './game.js';
 import axios from 'axios';
 import { BUTTON_INTERACTIONS } from '../constants/button_interactions.js';
+import { TEPACHE_METAL_ADDRESS } from '../config.js';
 
 export class GameFacade {
   #gameSessionResource;
@@ -70,7 +71,7 @@ export class GameFacade {
         );
 
         axios
-          .get(`http://localhost:8000/api/${direction}/${pin}`)
+          .get(`http://${TEPACHE_METAL_ADDRESS}/api/${direction}/${pin}`)
           .catch((error) => {
             console.error(error);
           });
