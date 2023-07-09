@@ -34,7 +34,7 @@ import {
   PUBNUB_SUBSCRIBE_KEY,
   PUBNUB_PUBLISH_KEY,
   PUBNUB_USER_ID,
-} from 'config';
+} from './config.js';
 
 const firebase = new Firebase();
 
