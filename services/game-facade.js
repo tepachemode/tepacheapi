@@ -95,6 +95,7 @@ export class GameFacade {
                 button,
               },
             });
+            console.debug(`Publishing to admin.${gameSessionId}`);
           } catch (error) {
             console.error('Error publishing to pubnub');
             console.error(error);
