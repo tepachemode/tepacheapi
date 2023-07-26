@@ -75,6 +75,8 @@ export class Game {
 
   #teamRegister;
 
+  #flushDownTime = QUEUE_FLUSH_DOWN_TIME;
+
   constructor(gameSession, hardwareInputResource, tepacheLogResource) {
     this.#gameSession = gameSession;
     this.#hardwareInputResource = hardwareInputResource;
@@ -163,4 +165,14 @@ export class Game {
   }
 
   stop() {}
+
+  enableVote() {
+    this.#flushDownTime = QUEUE_FLUSH_DOWN_TIME;
+    controllerOneCounter.enableVote();
+  }
+
+  disableVote() {
+    this.#flushDownTime = 0;
+    controllerOneCounter.disableVote();
+  }
 }

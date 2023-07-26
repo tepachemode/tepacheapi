@@ -193,6 +193,14 @@ export class GameFacade {
           }
         );
       },
+      presence: async ({ occupany }) => {
+        if (occupany === 1) {
+          console.debug('Enabling real-time play');
+          game.disableVote();
+        } else {
+          game.enableVote();
+        }
+      },
     });
   }
 
